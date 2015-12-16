@@ -1,3 +1,11 @@
+-- Final Fantasy II Bot
+-- Levels all spells on characters 1-3 (not 4) to max_spell_level defined below.
+-- Fight completion logic is primitive, and bot contains no healing logic at this point,
+-- so this is best done in a low-level area.
+
+local max_spell_level = 5
+local use_turbo = true
+
 local function text(x,y,str)
 	if (x > 0 and x < 255 and y > 0 and y < 240) then
 		gui.text(x,y,str)
@@ -9,7 +17,7 @@ local function bit(p)
 end
 
 local function hasbit(x, p)
-  return x % (p + p) >= p       
+  return x % (p + p) >= p
 end
 
 local function getgamecontext(game_context)
@@ -26,6 +34,7 @@ local function getgamecontext(game_context)
 	game_context.is_magic_menu_open = memory.readbyte(0x7CBA) == 0x01
 end
 
+-- strafe from left to right until we get attacked
 local function findbattle(game_context, bot_context)
 	text(2, 10, "find a battle")
 	local keys = {}
@@ -52,6 +61,7 @@ local function findbattle(game_context, bot_context)
 	end
 end
 
+-- auto attack to kill all enemies (could be grealy improved; need to find enemy state in RAM)
 local function winbattle(game_context, bot_context)
 	text(2, 10, "win a battle")
 	local keys = {}
@@ -62,7 +72,7 @@ local function winbattle(game_context, bot_context)
 			keys.B = 1
 			bot_context.is_save_required = true
 		else
-			-- auto-attack to kill all enemies
+			-- auto attack
 			keys.A = 1
 		end
 		
@@ -70,11 +80,12 @@ local function winbattle(game_context, bot_context)
 	end
 end
 
+-- save the game. this doesn't really have much purpose at the moment,
+-- but will help if we need to undo a bad fight where a character dies
 local function savegame(game_context, bot_context)
 	text(2, 10, "saving...")
 	
 	if not game_context.is_something_happening then
-		--FCEU.print("saving....")
 		savestate.save(bot_context.save_state)
 		
 		bot_context.is_save_required = false
@@ -85,9 +96,7 @@ local function getbotcontext(game_context, bot_context)
 	bot_context.magic_to_level = nil
 	bot_context.should_finish_battle = false
 	
-	local max_spell_level = 5
-
-	-- check for capped magic (queued in a battle)
+	-- if we're currently in a battle, check for capped spells so we know to get out and save
 	if game_context.is_in_battle then
 		for character_index = 0,2 do
 			for spell_index = 0,15 do
@@ -107,6 +116,7 @@ local function getbotcontext(game_context, bot_context)
 		end
 	end
 
+	-- if we're not going to get out and save, check for uncapped spells that need to be leveled
 	if not bot_context.should_finish_battle then
 		for character_index = 0,2 do
 			for spell_index = 0,15 do
@@ -134,6 +144,7 @@ local function getbotcontext(game_context, bot_context)
 	return bot_context
 end
 
+-- level a spell by queueing and backing out over and over, without actually casting anything
 local function levelmagic(game_context, bot_context)
 	text(2, 10, "level magic c" .. bot_context.magic_to_level.character_index .. " s" .. bot_context.magic_to_level.spell_index .. " " .. bot_context.magic_to_level.spell_level .. "-" .. string.format("%02d", bot_context.magic_to_level.spell_skill) .. "+" .. string.format("%02d", bot_context.magic_to_level.spell_skill_queue))
 
@@ -165,10 +176,12 @@ local function levelmagic(game_context, bot_context)
 			else keys.A = 1
 			end
 		elseif game_context.cursor_location == 0 then
+			-- select all characters and queue the spell
 			if game_context.target_character ~= 132 then keys.up = 1
 			else keys.A = 1
 			end
 		elseif game_context.cursor_location == 255 then
+			-- select all enemies and queue the spell
 			if game_context.target_enemy ~= 136 then keys.up = 1
 			else keys.A = 1
 			end
@@ -183,8 +196,7 @@ do
 	local game_context = {}
 	
 	bot_context.save_state = savestate.object(4)
-	FCEU.speedmode("turbo")
-	--bot_context.is_save_required = true
+	if use_turbo then FCEU.speedmode("turbo") end
 	
 	while true do
 		getgamecontext(game_context)
