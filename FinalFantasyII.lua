@@ -8,7 +8,7 @@ local config = {}
 config.TARGET_SPELL_LEVEL = 7
 config.TARGET_HP = 7000
 config.TARGET_MP = 800
-config.TARGET_GIL = 70000
+config.TARGET_GIL = 300000
 config.USE_TURBO = true
 config.HP_FLOOR_PCT = 0.55
 config.MP_FLOOR = 16
@@ -26,7 +26,7 @@ local function text(x,y,str)
 	end
 end
 
-local function bit(p)
+local function bitnumer(p)
   return 2 ^ (p - 1)  -- 1-based indexing
 end
 
@@ -65,7 +65,7 @@ end
 local function getGameContext(game_context)
 	game_context.is_in_battle = memory.readbyte(0x002E) == 0xB8
 	game_context.room_number = memory.readbyte(0x0048)
-	game_context.is_in_town = hasbit(memory.readbyte(0x002D), bit(1))
+	game_context.is_in_town = hasbit(memory.readbyte(0x002D), bitnumer(1))
 	game_context.is_in_overworld = not game_context.is_in_town and not game_context.is_in_battle
 	game_context.is_something_happening = memory.readbyte(0x0034) ~= 0x00
 	game_context.overworld_x = memory.readbyte(0x0027)
@@ -82,7 +82,7 @@ local function getGameContext(game_context)
 	game_context.treasure_x = memory.readbyte(0x0072)
 	game_context.treasure_y = memory.readbyte(0x0074)
 	game_context.is_treasure_menu_open =  game_context.is_in_battle and memory.readbyte(0x0070) == 40
-	game_context.gil = memory.readword(0x601C)
+	game_context.gil = bit.lshift(memory.readbyte(0x601E), 16) + bit.lshift(memory.readbyte(0x601D), 8) + memory.readbyte(0x601C) 
 	
 	game_context.characters = {}
 	
@@ -108,8 +108,8 @@ local function getGameContext(game_context)
 		enemy.is_alive = memory.readbyte(0x7B62 + enemy_index) ~= 0xFF
 		--enemy.can_target = memory.readbyte(0x7E3A + (enemy_index * 0x30) + 0x2A) ~= 0xFF
 		local weakness = memory.readbyte(0x7E3A + (enemy_index * 0x30) + 0x16)
-		enemy.weak_against_fire = hasbit(weakness, bit(2))
-		enemy.weak_against_lightning = hasbit(weakness, bit(4))
+		enemy.weak_against_fire = hasbit(weakness, bitnumer(2))
+		enemy.weak_against_lightning = hasbit(weakness, bitnumer(4))
 		
 		game_context.battle.enemies[enemy_index] = enemy
 	end
