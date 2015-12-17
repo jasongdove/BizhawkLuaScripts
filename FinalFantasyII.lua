@@ -5,16 +5,20 @@
 -- This also works better if character 4 has CURE and is positioned in the front (to allow weapon attacks)
 
 local config = {}
-config.TARGET_SPELL_LEVEL = 5
+config.TARGET_SPELL_LEVEL = 7
 config.TARGET_HP = 7000
-config.TARGET_MP = 999
-config.USE_TURBO = false
+config.TARGET_MP = 800
+config.TARGET_GIL = 70000
+config.USE_TURBO = true
 config.HP_FLOOR_PCT = 0.55
 config.MP_FLOOR = 16
+-- disabling the INN will prevent HP and MP leveling, since they require refilling resources
 config.USE_INN = false
 
 local SPELL_CURE = 0xD4
 local SPELL_ESUNA = 0xD7
+local SPELL_FIRE = 0xC0
+local SPELL_LIGHTNING = 0xC1
 
 local function text(x,y,str)
 	if (x > 0 and x < 255 and y > 0 and y < 240) then
@@ -78,6 +82,7 @@ local function getGameContext(game_context)
 	game_context.treasure_x = memory.readbyte(0x0072)
 	game_context.treasure_y = memory.readbyte(0x0074)
 	game_context.is_treasure_menu_open =  game_context.is_in_battle and memory.readbyte(0x0070) == 40
+	game_context.gil = memory.readword(0x601C)
 	
 	game_context.characters = {}
 	
@@ -101,7 +106,10 @@ local function getGameContext(game_context)
 	for enemy_index = 0,7 do
 		local enemy = {}
 		enemy.is_alive = memory.readbyte(0x7B62 + enemy_index) ~= 0xFF
-		enemy.can_target = memory.readbyte(0x7E3A + (enemy_index * 0x30) + 0x2A) ~= 0xFF
+		--enemy.can_target = memory.readbyte(0x7E3A + (enemy_index * 0x30) + 0x2A) ~= 0xFF
+		local weakness = memory.readbyte(0x7E3A + (enemy_index * 0x30) + 0x16)
+		enemy.weak_against_fire = hasbit(weakness, bit(2))
+		enemy.weak_against_lightning = hasbit(weakness, bit(4))
 		
 		game_context.battle.enemies[enemy_index] = enemy
 	end
@@ -203,6 +211,74 @@ local function fightEnemy(game_context, keys, target_enemy)
 	end
 end
 
+local function getspellindex(character_index, spell_id)
+	for spell_index = 0,15 do
+		if memory.readbyte(0x6100 + (character_index * 0x0040) + 0x0030 + spell_index) == spell_id then
+			return spell_index
+		end
+	end
+
+	return nil
+end
+
+local function castwhitemagic(game_context, keys, spell_index, target_character)
+	if cursorisinbattlemenu(game_context, game_context.active_character) and not game_context.is_magic_menu_open then
+		-- select 'magic' menu item
+		if game_context.menu_y == 0 then keys.down = 1
+		elseif game_context.menu_y == 1 then keys.down = 1
+		elseif game_context.menu_y == 2 then keys.A = 1
+		elseif game_context.menu_y == 3 then keys.up = 1
+		end
+	elseif cursorisinbattlemenu(game_context, game_context.active_character) and game_context.is_magic_menu_open then
+		-- select the spell to cast
+		local target_row = math.floor(spell_index / 4)
+		local target_column = math.fmod(spell_index, 4)
+		
+		if target_row < game_context.menu_y then keys.up = 1
+		elseif target_row > game_context.menu_y then keys.down = 1
+		elseif target_column < game_context.menu_x then keys.left = 1
+		elseif target_column > game_context.menu_x then keys.right = 1
+		else keys.A = 1
+		end
+	elseif game_context.cursor_location == 0 then
+		-- select the character and queue the spell
+		if game_context.target_character > target_character then keys.up = 1
+		elseif game_context.target_character < target_character then keys.down = 1
+		else
+			keys.A = 1
+		end
+	end
+end
+
+local function castBlackMagic(game_context, keys, spell_index, target_enemy)
+	if cursorisinbattlemenu(game_context, game_context.active_character) and not game_context.is_magic_menu_open then
+		-- select 'magic' menu item
+		if game_context.menu_y == 0 then keys.down = 1
+		elseif game_context.menu_y == 1 then keys.down = 1
+		elseif game_context.menu_y == 2 then keys.A = 1
+		elseif game_context.menu_y == 3 then keys.up = 1
+		end
+	elseif cursorisinbattlemenu(game_context, game_context.active_character) and game_context.is_magic_menu_open then
+		-- select the spell to cast
+		local target_row = math.floor(spell_index / 4)
+		local target_column = math.fmod(spell_index, 4)
+		
+		if target_row < game_context.menu_y then keys.up = 1
+		elseif target_row > game_context.menu_y then keys.down = 1
+		elseif target_column < game_context.menu_x then keys.left = 1
+		elseif target_column > game_context.menu_x then keys.right = 1
+		else keys.A = 1
+		end
+	elseif game_context.cursor_location == 255 then
+		-- select the enemy and queue the spell
+		if game_context.target_enemy > target_enemy then keys.up = 1
+		elseif game_context.target_enemy < target_enemy then keys.down = 1
+		else
+			keys.A = 1
+		end
+	end
+end
+
 -- auto attack to kill all enemies (could be grealy improved; need to find enemy state in RAM)
 local function winbattle(game_context, bot_context)
 	text(2, 10, "win a battle")
@@ -220,18 +296,42 @@ local function winbattle(game_context, bot_context)
 				keys.B = 1
 				bot_context.is_save_required = true
 			else
-				-- find all enemies that can be targeted, and mod to distribute attacks
-				targetable_enemies = {}
-				local enemy_count = 0
+				-- find all enemies that are alive, and mod to distribute attacks
+				-- this feels more complicated than it should be
+				local max_living_enemy_index = 0
 				for enemy_index = 0,7 do
-					if game_context.battle.enemies[enemy_index].can_target then
-						targetable_enemies[enemy_count] = enemy_index
+					if game_context.battle.enemies[enemy_index].is_alive then
+						max_living_enemy_index = enemy_index
+					end
+				end
+				
+				living_enemies = {}
+				
+				local start_index = 0
+				if math.fmod(max_living_enemy_index, 2) == 0 then
+					start_index = math.max(max_living_enemy_index - 2, 0) -- odd because we index at 0 (6 is really 7)
+				else
+					start_index = math.max(max_living_enemy_index - 3, 0)
+				end
+				
+				local enemy_count = 0
+				for enemy_index = start_index,7 do
+					if game_context.battle.enemies[enemy_index].is_alive then
+						living_enemies[enemy_count] = enemy_index
 						enemy_count = enemy_count + 1
 					end
 				end
 				
-				local target_enemy_index = targetable_enemies[math.fmod(game_context.active_character, enemy_count)]
-				fightEnemy(game_context, keys, target_enemy_index)
+				local living_enemy_index = living_enemies[math.fmod(game_context.active_character, enemy_count)]
+				
+				local character = game_context.characters[game_context.active_character]
+				local fire_spell_index = getspellindex(game_context.active_character, SPELL_FIRE)
+				local lightning_spell_index = getspellindex(game_context.active_character, SPELL_LIGHTNING)
+				if game_context.battle.enemies[living_enemy_index].weak_against_fire and fire_spell_index ~= nil and character.magic.current_mp > config.MP_FLOOR then
+					castBlackMagic(game_context, keys, fire_spell_index, living_enemy_index)
+				else
+					fightEnemy(game_context, keys, living_enemy_index)
+				end
 			end
 		end
 		
@@ -347,6 +447,7 @@ local function getBotContext(game_context, bot_context)
 	bot_context.should_finish_battle = false
 	bot_context.should_use_inn = false
 	bot_context.should_reload = false
+	bot_context.should_farm_gil = false
 
 	-- check for dead characters, and reload if any are found	
 	for character_index = 0,3 do
@@ -447,9 +548,8 @@ local function getBotContext(game_context, bot_context)
 				bot_context.should_finish_battle = false
 			end
 		end
-
 	end
-
+	
 	bot_context.previously_in_battle = game_context.is_in_battle
 
 	-- finishing the battle is the top priority, so skip other checks if that needs to happen
@@ -529,10 +629,15 @@ local function getBotContext(game_context, bot_context)
 		for character_index = 0,2 do
 			local character = game_context.characters[character_index]
 			
-			if character.magic.max_mp < config.TARGET_MP then
+			if character.magic.max_mp < config.TARGET_MP and character.magic.current_mp > config.MP_FLOOR then
 				bot_context.should_level_mp = true
 				break
 			end
+		end
+		
+		-- check for uncapped gil
+		if game_context.gil < config.TARGET_GIL then
+			bot_context.should_farm_gil = true
 		end
 	end
 	
@@ -583,45 +688,6 @@ local function levelmagic(game_context, bot_context)
 		end
 		
 		joypad.set(1, keys)
-	end
-end
-
-local function getspellindex(character_index, spell_id)
-	for spell_index = 0,15 do
-		if memory.readbyte(0x6100 + (character_index * 0x0040) + 0x0030 + spell_index) == spell_id then
-			return spell_index
-		end
-	end
-
-	return nil
-end
-
-local function castwhitemagic(game_context, keys, spell_index, target_character)
-	if cursorisinbattlemenu(game_context, game_context.active_character) and not game_context.is_magic_menu_open then
-		-- select 'magic' menu item
-		if game_context.menu_y == 0 then keys.down = 1
-		elseif game_context.menu_y == 1 then keys.down = 1
-		elseif game_context.menu_y == 2 then keys.A = 1
-		elseif game_context.menu_y == 3 then keys.up = 1
-		end
-	elseif cursorisinbattlemenu(game_context, game_context.active_character) and game_context.is_magic_menu_open then
-		-- select the spell to level
-		local target_row = math.floor(spell_index / 4)
-		local target_column = math.fmod(spell_index, 4)
-		
-		if target_row < game_context.menu_y then keys.up = 1
-		elseif target_row > game_context.menu_y then keys.down = 1
-		elseif target_column < game_context.menu_x then keys.left = 1
-		elseif target_column > game_context.menu_x then keys.right = 1
-		else keys.A = 1
-		end
-	elseif game_context.cursor_location == 0 then
-		-- select the character and queue the spell
-		if game_context.target_character > target_character then keys.up = 1
-		elseif game_context.target_character < target_character then keys.down = 1
-		else
-			keys.A = 1
-		end
 	end
 end
 
@@ -736,7 +802,7 @@ do
 			savegame(game_context, bot_context)
 		elseif config.USE_INN and not game_context.is_in_battle and bot_context.should_use_inn then
 			useinn(game_context, bot_context)
-		elseif not game_context.is_in_battle and (bot_context.magic_to_level ~= nil or bot_context.hp_to_level ~= nil or bot_context.should_level_mp) then
+		elseif not game_context.is_in_battle and (bot_context.magic_to_level ~= nil or bot_context.hp_to_level ~= nil or bot_context.should_level_mp or bot_context.should_farm_gil) then
 			findbattle(game_context, bot_context)
 		elseif game_context.is_in_battle and bot_context.should_finish_battle then
 			winbattle(game_context, bot_context)
