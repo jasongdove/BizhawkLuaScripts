@@ -5,10 +5,10 @@
 -- This also works better if character 4 has CURE and is positioned in the front (to allow weapon attacks)
 
 local config = {}
-config.TARGET_SPELL_LEVEL = 6
-config.TARGET_HP = 9999
+config.TARGET_SPELL_LEVEL = 5
+config.TARGET_HP = 7000
 config.TARGET_MP = 999
-config.USE_TURBO = true
+config.USE_TURBO = false
 config.HP_FLOOR_PCT = 0.55
 config.MP_FLOOR = 16
 config.USE_INN = false
@@ -75,6 +75,9 @@ local function getGameContext(game_context)
 	game_context.menu_x = memory.readbyte(0x0053)
 	game_context.menu_y = memory.readbyte(0x0054)
 	game_context.is_magic_menu_open = memory.readbyte(0x7CBA) == 0x01
+	game_context.treasure_x = memory.readbyte(0x0072)
+	game_context.treasure_y = memory.readbyte(0x0074)
+	game_context.is_treasure_menu_open =  game_context.is_in_battle and memory.readbyte(0x0070) == 40
 	
 	game_context.characters = {}
 	
@@ -89,6 +92,18 @@ local function getGameContext(game_context)
 		end
 
 		game_context.characters[character_index] = character
+	end
+	
+	game_context.battle = {}
+	game_context.battle.living_enemy_count = memory.readbyte(0x7B4D)
+	game_context.battle.enemies = {}
+	
+	for enemy_index = 0,7 do
+		local enemy = {}
+		enemy.is_alive = memory.readbyte(0x7B62 + enemy_index) ~= 0xFF
+		enemy.can_target = memory.readbyte(0x7E3A + (enemy_index * 0x30) + 0x2A) ~= 0xFF
+		
+		game_context.battle.enemies[enemy_index] = enemy
 	end
 end
 
@@ -158,19 +173,66 @@ local function findbattle(game_context, bot_context)
 	joypad.set(1, keys)
 end
 
+local function cursorisinbattlemenu(game_context, character_index)
+	if character_index == 0 then return game_context.cursor_location == 1 or game_context.cursor_location == 33
+	elseif character_index == 1 then return game_context.cursor_location == 9 or game_context.cursor_location == 39
+	elseif character_index == 2 then return game_context.cursor_location == 17 or game_context.cursor_location == 45
+	elseif character_index == 3 then return game_context.cursor_location == 25 -- TODO: find other number when character has LOW hp
+	else return false
+	end
+end
+
+local function fightEnemy(game_context, keys, target_enemy)
+	if cursorisinbattlemenu(game_context, game_context.active_character) and not game_context.is_magic_menu_open then
+		-- select 'fight' menu item
+		if game_context.menu_y == 0 then keys.A = 1
+		elseif game_context.menu_y == 1 then keys.up = 1
+		elseif game_context.menu_y == 2 then keys.up = 1
+		elseif game_context.menu_y == 3 then keys.up = 1
+		end
+	elseif game_context.cursor_location == 0 then
+		-- move the cursor to the enemy side
+		keys.left = 1
+	elseif game_context.cursor_location == 255 then
+		-- select the enemy and queue the attack
+		if game_context.target_enemy > target_enemy then keys.up = 1
+		elseif game_context.target_enemy < target_enemy then keys.down = 1
+		else
+			keys.A = 1
+		end
+	end
+end
+
 -- auto attack to kill all enemies (could be grealy improved; need to find enemy state in RAM)
 local function winbattle(game_context, bot_context)
 	text(2, 10, "win a battle")
 	local keys = {}
 	
 	if not game_context.is_something_happening and game_context.overworld_x == 2 then
-		if not bot_context.is_save_required then
-			-- if we have a save queued, undo the last action
-			keys.B = 1
-			bot_context.is_save_required = true
+		if game_context.is_treasure_menu_open then
+			if game_context.treasure_x > 0 then keys.left = 1 -- may not be needed
+			elseif game_context.treasure_y < 9 then keys.B = 1 -- cancel out to select "exit"
+			else keys.A = 1 -- confirm "exit"
+			end
 		else
-			-- auto attack
-			keys.A = 1
+			if not bot_context.is_save_required then
+				-- if we have a save queued, undo the last action
+				keys.B = 1
+				bot_context.is_save_required = true
+			else
+				-- find all enemies that can be targeted, and mod to distribute attacks
+				targetable_enemies = {}
+				local enemy_count = 0
+				for enemy_index = 0,7 do
+					if game_context.battle.enemies[enemy_index].can_target then
+						targetable_enemies[enemy_count] = enemy_index
+						enemy_count = enemy_count + 1
+					end
+				end
+				
+				local target_enemy_index = targetable_enemies[math.fmod(game_context.active_character, enemy_count)]
+				fightEnemy(game_context, keys, target_enemy_index)
+			end
 		end
 		
 		joypad.set(1, keys)
@@ -477,15 +539,6 @@ local function getBotContext(game_context, bot_context)
 	return bot_context
 end
 
-local function cursorisinbattlemenu(game_context, character_index)
-	if character_index == 0 then return game_context.cursor_location == 1 or game_context.cursor_location == 33
-	elseif character_index == 1 then return game_context.cursor_location == 9 or game_context.cursor_location == 39
-	elseif character_index == 2 then return game_context.cursor_location == 17 or game_context.cursor_location == 45
-	elseif character_index == 3 then return game_context.cursor_location == 25 -- TODO: find other number when character has LOW hp
-	else return false
-	end
-end
-
 -- level a spell by queueing and backing out over and over, without actually casting anything
 local function levelmagic(game_context, bot_context)
 	text(2, 10, "level magic c" .. bot_context.magic_to_level.character_index .. " s" .. bot_context.magic_to_level.spell_index .. " " .. bot_context.magic_to_level.spell_level .. "-" .. string.format("%02d", bot_context.magic_to_level.spell_skill) .. "+" .. string.format("%02d", bot_context.magic_to_level.spell_skill_queue))
@@ -693,6 +746,8 @@ do
 			levelhp(game_context, bot_context)
 		elseif game_context.is_in_battle and bot_context.should_level_mp then
 			levelmp(game_context, bot_context)
+		elseif game_context.is_in_battle then -- don't just sit in a battle doing nothing
+			winbattle(game_context, bot_context)
 		else
 			text(2, 10, "nothing to do...")
 		end
