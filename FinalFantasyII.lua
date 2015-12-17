@@ -5,12 +5,13 @@
 -- This also works better if character 4 has CURE and is positioned in the front (to allow weapon attacks)
 
 local config = {}
-config.TARGET_SPELL_LEVEL = 5
+config.TARGET_SPELL_LEVEL = 6
 config.TARGET_HP = 9999
 config.TARGET_MP = 999
 config.USE_TURBO = true
 config.HP_FLOOR_PCT = 0.55
 config.MP_FLOOR = 16
+config.USE_INN = false
 
 local SPELL_CURE = 0xD4
 local SPELL_ESUNA = 0xD7
@@ -328,59 +329,61 @@ local function getBotContext(game_context, bot_context)
 		end
 		
 		-- check for low hp
-		local low_hp_characters = 0
-		local max_hp_characters = 0
-		local max_mp_characters = 0
-		for character_index = 0,2 do
-			local character = game_context.characters[character_index]
-			
-			if character.health.current_hp / character.health.max_hp <= config.HP_FLOOR_PCT then
-				low_hp_characters = low_hp_characters + 1
+		if config.USE_INN then
+			local low_hp_characters = 0
+			local max_hp_characters = 0
+			local max_mp_characters = 0
+			for character_index = 0,2 do
+				local character = game_context.characters[character_index]
+				
+				if character.health.current_hp / character.health.max_hp <= config.HP_FLOOR_PCT then
+					low_hp_characters = low_hp_characters + 1
+				end
+				
+				if character.health.max_hp >= config.TARGET_HP then
+					max_hp_characters = max_hp_characters + 1
+				end
+	
+				if character_index < 3 and character.magic.max_mp >= config.TARGET_MP then
+					max_mp_characters = max_mp_characters + 1
+				end
 			end
 			
-			if character.health.max_hp >= config.TARGET_HP then
-				max_hp_characters = max_hp_characters + 1
+			if low_hp_characters > 0 and low_hp_characters + max_hp_characters >= 3 then
+				-- if we're here, but we have a bunch of HP (say over 1000), then let's spam spells to level MP
+				for character_index = 0,3 do
+					local character = game_context.characters[character_index]
+					
+					if (character_index < 3 and character.health.current_hp < 1000) or character.magic.current_mp < config.MP_FLOOR then
+						bot_context.should_finish_battle = true
+					end
+				end
+				
+				-- if we have maxed mp, forget spamming spells
+				if max_mp_characters == 3 then
+					bot_context.should_finish_battle = true
+				end
+				
+				if not bot_context.should_finish_battle then bot_context.should_level_mp = true end
 			end
-
-			if character_index < 3 and character.magic.max_mp >= config.TARGET_MP then
-				max_mp_characters = max_mp_characters + 1
-			end
-		end
-		
-		if low_hp_characters > 0 and low_hp_characters + max_hp_characters >= 3 then
+			
 			-- if we're here, but we have a bunch of HP (say over 1000), then let's spam spells to level MP
+			bot_context.should_level_mp = true
 			for character_index = 0,3 do
 				local character = game_context.characters[character_index]
 				
 				if (character_index < 3 and character.health.current_hp < 1000) or character.magic.current_mp < config.MP_FLOOR then
-					bot_context.should_finish_battle = true
+					bot_context.should_level_mp = false
 				end
 			end
 			
-			-- if we have maxed mp, forget spamming spells
 			if max_mp_characters == 3 then
-				bot_context.should_finish_battle = true
-			end
-			
-			if not bot_context.should_finish_battle then bot_context.should_level_mp = true end
-		end
-		
-		-- if we're here, but we have a bunch of HP (say over 1000), then let's spam spells to level MP
-		bot_context.should_level_mp = true
-		for character_index = 0,3 do
-			local character = game_context.characters[character_index]
-			
-			if (character_index < 3 and character.health.current_hp < 1000) or character.magic.current_mp < config.MP_FLOOR then
 				bot_context.should_level_mp = false
 			end
-		end
-		
-		if max_mp_characters == 3 then
-			bot_context.should_level_mp = false
-		end
-		
-		if bot_context.should_level_mp then
-			bot_context.should_finish_battle = false
+			
+			if bot_context.should_level_mp then
+				bot_context.should_finish_battle = false
+			end
 		end
 
 	end
@@ -678,7 +681,7 @@ do
 			reloadgame(game_context, bot_context)
 		elseif game_context.is_in_overworld and bot_context.is_save_required then
 			savegame(game_context, bot_context)
-		elseif not game_context.is_in_battle and bot_context.should_use_inn then
+		elseif config.USE_INN and not game_context.is_in_battle and bot_context.should_use_inn then
 			useinn(game_context, bot_context)
 		elseif not game_context.is_in_battle and (bot_context.magic_to_level ~= nil or bot_context.hp_to_level ~= nil or bot_context.should_level_mp) then
 			findbattle(game_context, bot_context)
