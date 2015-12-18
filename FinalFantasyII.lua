@@ -1,8 +1,8 @@
 -- Final Fantasy II Bot
--- Levels all spells on characters 1-3 (not 4) to MAX_SPELL_LEVEL defined below.
--- Fight completion logic is primitive, and bot contains no healing logic at this point,
--- so this is best done in a low-level area.
--- This also works better if character 4 has CURE and is positioned in the front (to allow weapon attacks)
+--  - Levels all spells on characters 1-3 (not 4) to TARGET_SPELL_LEVEL defined below.
+--  - Fight completion logic is primitive, and bot contains no healing logic at this point,
+--     so this is best done in a low-level area at first. Once your HP/stats get high enough, go nuts.
+--  - This also works better if all characters have CURE and character 4 is positioned in the front (to allow weapon attacks)
 
 local config = {}
 config.TARGET_SPELL_LEVEL = 9
@@ -18,15 +18,15 @@ config.INN = "Mysidia"
 -- when your stats get too high, you may want to switch to magic (LEVEL_BY_FIRE = true) if weapon attacks miss
 config.LEVEL_BY_FIRE = true
 -- this is normally set to false because character 4 can't use the same trick (queue spell and cancel), since the round ends as soon as character 4 queues anything
--- enabling this feature will make the magic leveling process SLOW
-config.LEVEL_CHARACTER_4_MAGIC = false
+-- enabling this feature will make the magic leveling process SLOW. HP leveling should be okay
+config.LEVEL_CHARACTER_4 = false
 
 local SPELL_CURE = 0xD4
 local SPELL_ESUNA = 0xD7
 local SPELL_FIRE = 0xC0
 local SPELL_LIGHTNING = 0xC1
 
--- utility functions
+-- sorted pairs
 function spairs(t, order)
   -- collect the keys
   local keys = {}
@@ -54,7 +54,7 @@ local function cursorisinbattlemenu(game_context, character_index)
   if character_index == 0 then return game_context.cursor_location == 1 or game_context.cursor_location == 33
   elseif character_index == 1 then return game_context.cursor_location == 9 or game_context.cursor_location == 39
   elseif character_index == 2 then return game_context.cursor_location == 17 or game_context.cursor_location == 45
-  elseif character_index == 3 then return game_context.cursor_location == 25 -- TODO: find other number when character has LOW hp
+  elseif character_index == 3 then return game_context.cursor_location == 25 -- TODO: find other number when character 4 has LOW hp
   else return false
   end
 end
@@ -242,7 +242,7 @@ function FindBattleState:needToRun(game_context, bot_context)
   return bot_context.magic_to_level ~= nil
     or bot_context.hp_to_level ~= nil
     or bot_context.should_level_mp
-    or bot_context.should_farm_gil
+    or bot_context.has_uncapped_gil
 end
 
 function FindBattleState:getText(game_context, bot_context)
@@ -328,8 +328,9 @@ end
 function WinBattleState:needToRun(game_context, bot_context)
   if not game_context.is_in_battle then return false end
   
-  -- TODO: move the "should_finish_battle" logic into this function
-  return bot_context.should_finish_battle or bot_context.should_farm_gil
+  return bot_context.has_battle_capped_spell
+    or bot_context.has_low_mp
+    or bot_context.has_uncapped_gil
 end
 
 function WinBattleState:getText(game_context, bot_context)
@@ -474,10 +475,16 @@ function UseMysidiaInnState:getPriority()
 end
 
 function UseMysidiaInnState:needToRun(game_context, bot_context)
+  local characters_to_level = 3
+  if config.LEVEL_CHARACTER_4 then characters_to_level = 4 end
+  
+  local has_any_low_hp_characters = bot_context.low_hp_characters > 0
+  local has_max_low_hp_characters = bot_context.low_hp_characters + bot_context.capped_hp_characters == characters_to_level 
+
   return config.USE_INN
     and config.INN == "Mysidia"
     and not game_context.is_in_battle
-    and bot_context.should_use_inn
+    and (bot_context.has_low_mp or (has_any_low_hp_characters and has_max_low_hp_characters))
 end
 
 function UseMysidiaInnState:getText(game_context, bot_context)
@@ -693,17 +700,7 @@ function LevelMPState:getPriority()
 end
 
 function LevelMPState:needToRun(game_context, bot_context)
-  if game_context.is_in_battle then
-    for character_index = 0,2 do
-      local character = game_context.characters[character_index]
-      
-      if character.magic.max_mp < config.TARGET_MP and character.magic.current_mp > config.MP_FLOOR then
-        return true
-      end
-    end
-  end
-  
-  return bot_context.should_level_mp
+  return bot_context.has_uncapped_mp
 end
 
 function LevelMPState:getText(game_context, bot_context)
@@ -830,149 +827,27 @@ local function getGameContext(game_context)
   end
 end
 
--- TODO: simplify this function. it also has some priorities contained within that conflict with the new
--- state-based priority system
+-- this function should perform common aggregations on the game_context so they don't have to be
+-- recalculated by each state. it should NOT directly indicate which states should run
 local function getBotContext(game_context, bot_context)
+
+  -- check for uncapped gil
+  bot_context.has_uncapped_gil = game_context.gil < config.TARGET_GIL
+
   bot_context.magic_to_level = nil
-  bot_context.should_level_mp = false
+  bot_context.has_uncapped_mp = false
   bot_context.hp_to_level = nil
-  bot_context.should_finish_battle = false
-  bot_context.should_use_inn = false
-  bot_context.should_farm_gil = false
-
-  -- if we're currently in a battle, check for conditions that require a save
-  if game_context.is_in_battle then
+  bot_context.has_battle_capped_spell = false
+  bot_context.has_low_mp = false
+  bot_context.low_hp_characters = 0
+  bot_context.capped_hp_characters = 0
   
-    -- if we're entering a battle, store some info
-    if bot_context.previously_in_battle == nil or not bot_context.previously_in_battle then
-      bot_context.battle = {}
-      bot_context.battle.character_started_low = {}
-      
-      for character_index = 0,2 do
-        local character = game_context.characters[character_index]
-        bot_context.battle.character_started_low[character_index] = character.health.current_hp / character.health.max_hp <= config.HP_FLOOR_PCT 
-      end
-    end
-    
-    -- check for capped spell levels
-    local max_character = 2
-    if config.LEVEL_CHARACTER_4_MAGIC then max_character = 3 end
-    for character_index = 0,max_character do
-      for spell_index = 0,15 do
-        if memory.readbyte(0x6100 + (character_index * 0x0040) + 0x0030 + spell_index) ~= 0x00 then
-          local spell_level = memory.readbyte(0x6200 + (character_index * 0x0040) + 0x0010 + (spell_index * 2)) + 1
-          local spell_skill = memory.readbyte(0x6200 + (character_index * 0x0040) + 0x0010 + (spell_index * 2) + 1)
-          local spell_skill_queue = memory.readbyte(0x7CF7 + (character_index * 0x0010) + spell_index) 
-          
-          if spell_level < config.TARGET_SPELL_LEVEL and spell_skill + spell_skill_queue == 100 then
-            bot_context.should_finish_battle = true
-            break
-          end
-        end
-      end
-      
-      if bot_context.should_finish_battle then break end
-    end
-    
-    -- check for low hp
-    if config.USE_INN then
-      local low_hp_characters = 0
-      local max_hp_characters = 0
-      local max_mp_characters = 0
-      for character_index = 0,2 do
-        local character = game_context.characters[character_index]
-        
-        if character.health.current_hp / character.health.max_hp <= config.HP_FLOOR_PCT then
-          low_hp_characters = low_hp_characters + 1
-        end
-        
-        if character.health.max_hp >= config.TARGET_HP then
-          max_hp_characters = max_hp_characters + 1
-        end
-  
-        if character_index < 3 and character.magic.max_mp >= config.TARGET_MP then
-          max_mp_characters = max_mp_characters + 1
-        end
-      end
-      
-      if low_hp_characters > 0 and low_hp_characters + max_hp_characters >= 3 then
-        -- if we're here, but we have a bunch of HP (say over 1000), then let's spam spells to level MP
-        for character_index = 0,3 do
-          local character = game_context.characters[character_index]
-          
-          if (character_index < 3 and character.health.current_hp < 1000) or character.magic.current_mp < config.MP_FLOOR then
-            bot_context.should_finish_battle = true
-          end
-        end
-        
-        -- if we have maxed mp, forget spamming spells
-        if max_mp_characters == 3 then
-          bot_context.should_finish_battle = true
-        end
-        
-        if not bot_context.should_finish_battle then bot_context.should_level_mp = true end
-      end
-      
-      -- if we're here, but we have a bunch of HP (say over 1000), then let's spam spells to level MP
-      bot_context.should_level_mp = true
-      for character_index = 0,3 do
-        local character = game_context.characters[character_index]
-        
-        if (character_index < 3 and character.health.current_hp < 1000) or character.magic.current_mp < config.MP_FLOOR then
-          bot_context.should_level_mp = false
-        end
-      end
-      
-      if max_mp_characters == 3 then
-        bot_context.should_level_mp = false
-      end
-      
-      if bot_context.should_level_mp then
-        bot_context.should_finish_battle = false
-      end
-    end
-  end
-  
-  bot_context.previously_in_battle = game_context.is_in_battle
-
-  -- finishing the battle is the top priority, so skip other checks if that needs to happen
-  if not bot_context.should_finish_battle then
-  
-    -- check if we need to rest
-    local low_hp_characters = 0
-    local low_mp_characters = 0
-    local max_hp_characters = 0
-    for character_index = 0,3 do
-      local character = game_context.characters[character_index]
-
-      -- don't care about character 3's HP
-      if character_index < 3 then
-        if character.health.current_hp / character.health.max_hp <= config.HP_FLOOR_PCT then
-          low_hp_characters = low_hp_characters + 1
-        end
-      
-        if character.health.max_hp >= config.TARGET_HP then
-          max_hp_characters = max_hp_characters + 1
-        end
-      end
-      
-      if character.magic.current_mp <= config.MP_FLOOR then
-        low_mp_characters = low_mp_characters + 1
-      end
-    end
-    if (low_hp_characters > 0 and low_hp_characters + max_hp_characters >= 3) or low_mp_characters > 0 then
-      bot_context.should_use_inn = true
-      
-      -- if we need to rest, and we're in a battle, finish it
-      if game_context.is_in_battle then
-        bot_context.should_finish_battle = true
-      end
-    end
-  
-    -- check for uncapped spells
-    local max_character = 2
-    if config.LEVEL_CHARACTER_4_MAGIC then max_character = 3 end
-    for character_index = 0,max_character do
+  -- loop through all characters
+  local max_character = 2
+  if config.LEVEL_CHARACTER_4 then max_character = 3 end
+  for character_index = 0,max_character do
+    -- check for uncapped spells until we find *one* to level
+    if bot_context.magic_to_level == nil then
       for spell_index = 0,15 do
         if memory.readbyte(0x6100 + (character_index * 0x0040) + 0x0030 + spell_index) ~= 0x00 then
           local spell_level = memory.readbyte(0x6200 + (character_index * 0x0040) + 0x0010 + (spell_index * 2)) + 1
@@ -987,18 +862,38 @@ local function getBotContext(game_context, bot_context)
             bot_context.magic_to_level.spell_skill = spell_skill
             bot_context.magic_to_level.spell_skill_queue = spell_skill_queue
             break
+          elseif spell_level < config.TARGET_SPELL_LEVEL and spell_skill + spell_skill_queue == 100 then
+            bot_context.has_battle_capped_spell = true
           end
         end
       end
-      
-      if bot_context.magic_to_level ~= nil then break end
     end
     
-    -- check for uncapped hp
-    for character_index = 0,2 do
-      local character = game_context.characters[character_index]
-      
-      if character.health.current_hp / character.health.max_hp >= config.HP_FLOOR_PCT and character.health.max_hp < config.TARGET_HP then
+    local character = game_context.characters[character_index]
+
+    -- check for capped HP
+    if character.health.max_hp >= config.TARGET_HP then
+      bot_context.capped_hp_characters = bot_context.capped_hp_characters + 1
+    end
+    
+    -- check for low HP
+    if character.health.current_hp / character.health.max_hp < config.HP_FLOOR_PCT then
+      bot_context.low_hp_characters = bot_context.low_hp_characters + 1
+    end
+
+    -- check for low MP
+    if character.magic.current_mp <= config.MP_FLOOR then
+      bot_context.has_low_mp = true
+    end
+
+    -- check for uncapped MP
+    if character.magic.max_mp < config.TARGET_MP and character.magic.current_mp > config.MP_FLOOR then
+      bot_context.has_uncapped_mp = true
+    end
+    
+    -- check for uncapped HP until we find *one* character to level
+    if bot_context.hp_to_level == nil then
+      if character.health.max_hp < config.TARGET_HP and character.health.current_hp / character.health.max_hp > config.HP_FLOOR_PCT then
         bot_context.hp_to_level = {}
         bot_context.hp_to_level.character_index = character_index
         
@@ -1010,14 +905,7 @@ local function getBotContext(game_context, bot_context)
           -- no skill with staves, should do okay damage to themselves
           bot_context.hp_to_level.attacking_character_index = character_index
         end
-        
-        break
       end
-    end
-    
-    -- check for uncapped gil
-    if game_context.gil < config.TARGET_GIL then
-      bot_context.should_farm_gil = true
     end
   end
   
