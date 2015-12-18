@@ -241,7 +241,7 @@ function FindBattleState:needToRun(game_context, bot_context)
   
   return bot_context.magic_to_level ~= nil
     or bot_context.hp_to_level ~= nil
-    or bot_context.should_level_mp
+    or bot_context.has_uncapped_mp
     or bot_context.has_uncapped_gil
 end
 
