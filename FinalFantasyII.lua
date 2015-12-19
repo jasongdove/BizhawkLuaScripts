@@ -55,7 +55,7 @@ local function cursorisinbattlemenu(game_context, character_index)
   if character_index == 0 then return game_context.cursor_location == 1 or game_context.cursor_location == 33
   elseif character_index == 1 then return game_context.cursor_location == 9 or game_context.cursor_location == 39
   elseif character_index == 2 then return game_context.cursor_location == 17 or game_context.cursor_location == 45
-  elseif character_index == 3 then return game_context.cursor_location == 25 -- TODO: find other number when character 4 has LOW hp
+  elseif character_index == 3 then return game_context.cursor_location == 25 or game_context.cursor_location == 51
   else return false
   end
 end
@@ -187,7 +187,7 @@ local function castBlackMagic(game_context, keys, spell_index, target_enemy, tar
   end
 end
 
-function completeTurnWithMinimalImpact(game_context, bot_context)
+function completeTurnWithMinimalImpact(game_context, bot_context, keys)
   -- try to cast some white magic to avoid killing any enemies
   local character = game_context.characters[game_context.active_character]
   local did_cast_spell = false
@@ -424,7 +424,7 @@ end
 DismissTreasureState = State:new()
 
 function DismissTreasureState:getPriority()
-  return 8
+  return 9
 end
 
 function DismissTreasureState:needToRun(game_context, bot_context)
@@ -698,7 +698,7 @@ function LevelHPState:run(game_context, bot_context)
         fightcharacter(game_context, keys, bot_context.hp_to_level.character_index)
       end
     else
-      completeTurnWithMinimalImpact(game_context, bot_context)
+      completeTurnWithMinimalImpact(game_context, bot_context, keys)
     end
     
     joypad.set(1, keys)
@@ -747,6 +747,70 @@ function LevelMPState:run(game_context, bot_context)
     
     joypad.set(1, keys)
   end
+end
+
+
+HealCharacterState = State:new()
+
+function HealCharacterState:getPriority()
+  return 8
+end
+
+function HealCharacterState:needToRun(game_context, bot_context)
+  return bot_context.hp_to_level == nil and bot_context.low_hp_characters > 0
+end
+
+function HealCharacterState:getText(game_context, bot_context)
+  return "heal character"
+end
+
+function HealCharacterState:run(game_context, bot_context)
+  local keys = {}
+  
+  -- find low hp character
+  local low_hp_character_index
+  for character_index = 0,3 do
+    local character = game_context.characters[character_index]
+    
+    if character.health.current_hp / character.health.max_hp <= config.HP_FLOOR_PCT then
+      low_hp_character_index = character_index
+    end
+  end
+  
+  if low_hp_character_index == nil then return end
+    
+  -- find first character with CURE
+  local heal_character_index
+  local cure_spell_index
+  for character_index = 0,3 do
+    cure_spell_index = getspellindex(character_index, SPELL_CURE)
+    if cure_spell_index ~= nil then
+      heal_character_index = character_index
+      break
+    end
+  end
+  
+  if heal_character_index == nil then return end
+  
+  if not bot_context.is_heal_queued then
+    if game_context.active_character > heal_character_index then
+      -- cancel actions to get to character who will cast HEAL
+      keys.B = 1
+    elseif game_context.active_character < heal_character_index then
+      completeTurnWithMinimalImpact(game_context, bot_context, keys)
+    else
+      castwhitemagic(game_context, keys, cure_spell_index, low_hp_character_index)
+      bot_context.is_heal_queued = true
+    end
+  else
+    if game_context.active_character ~= heal_character_index then
+      completeTurnWithMinimalImpact(game_context, bot_context, keys)
+    else
+      castwhitemagic(game_context, keys, cure_spell_index, low_hp_character_index)
+    end    
+  end
+  
+  joypad.set(1, keys)
 end
 
 
@@ -894,11 +958,6 @@ local function getBotContext(game_context, bot_context)
       bot_context.capped_hp_characters = bot_context.capped_hp_characters + 1
     end
     
-    -- check for low HP
-    if character.health.current_hp / character.health.max_hp < config.HP_FLOOR_PCT then
-      bot_context.low_hp_characters = bot_context.low_hp_characters + 1
-    end
-
     -- check for low MP
     if character.magic.current_mp <= config.MP_FLOOR then
       bot_context.has_low_mp = true
@@ -927,6 +986,23 @@ local function getBotContext(game_context, bot_context)
     end
   end
   
+  -- perform some checks on all characters, whether or not we're leveling character 4
+  for character_index = 0,3 do
+    local character = game_context.characters[character_index]
+    
+    -- check for low HP
+    if character.health.current_hp / character.health.max_hp < config.HP_FLOOR_PCT then
+      bot_context.low_hp_characters = bot_context.low_hp_characters + 1
+    end
+  end
+  
+  -- reset the "is_heal_queued" flag after we're done healing
+  -- TODO: improve this reset logic; we'll probably get stuck if a single CURE
+  -- isn't enough to heal above config.HP_FLOOR_PCT
+  if bot_context.low_hp_characters == 0 then
+    bot_context.is_heal_queued = nil
+  end
+  
   return bot_context
 end
 
@@ -945,6 +1021,7 @@ do
   states[7] = LevelSpellState:new()
   states[8] = LevelHPState:new()
   states[9] = LevelMPState:new()
+  states[10] = HealCharacterState:new()
   
   bot_context.save_state = savestate.object()
   savestate.save(bot_context.save_state)
