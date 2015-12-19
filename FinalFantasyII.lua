@@ -5,7 +5,7 @@
 --  - This also works better if all characters have CURE and character 4 is positioned in the front (to allow weapon attacks)
 
 local config = {}
-config.TARGET_SPELL_LEVEL = 9
+config.TARGET_SPELL_LEVEL = 16
 config.TARGET_HP = 9999
 config.TARGET_MP = 999
 config.TARGET_GIL = 16000000
@@ -20,6 +20,7 @@ config.LEVEL_BY_FIRE = true
 -- this is normally set to false because character 4 can't use the same trick (queue spell and cancel), since the round ends as soon as character 4 queues anything
 -- enabling this feature will make the magic leveling process SLOW. HP leveling should be okay
 config.LEVEL_CHARACTER_4 = false
+config.LEVEL_SPELL_MULTICAST = false
 
 local SPELL_CURE = 0xD4
 local SPELL_ESUNA = 0xD7
@@ -184,6 +185,36 @@ local function castBlackMagic(game_context, keys, spell_index, target_enemy, tar
       keys.left = 1
     end
   end
+end
+
+function completeTurnWithMinimalImpact(game_context, bot_context)
+  -- try to cast some white magic to avoid killing any enemies
+  local character = game_context.characters[game_context.active_character]
+  local did_cast_spell = false
+  
+  -- cast on character 4 if we aren't HP-capped so it won't mess with our HP leveling
+  local target_character = 3
+  if bot_context.hp_to_level == nil then
+    -- otherwise pick a random character
+    target_character = math.random(0, 3)
+  end
+  
+  if character.magic.current_mp >= config.MP_FLOOR then
+    local esuna_spell_index = getspellindex(game_context.active_character, SPELL_ESUNA)
+    local cure_spell_index = getspellindex(game_context.active_character, SPELL_CURE)
+    if esuna_spell_index ~= nil then
+      castwhitemagic(game_context, keys, esuna_spell_index, target_character)
+      did_cast_spell = true
+    elseif cure_spell_index ~= nil then
+      castwhitemagic(game_context, keys, cure_spell_index, target_character)
+      did_cast_spell = true
+    end
+  end
+  
+  if not did_cast_spell then
+    -- auto attack
+    keys.A = 1
+  end  
 end
 
 -- base state class
@@ -393,7 +424,7 @@ end
 DismissTreasureState = State:new()
 
 function DismissTreasureState:getPriority()
-  return 4
+  return 8
 end
 
 function DismissTreasureState:needToRun(game_context, bot_context)
@@ -583,7 +614,7 @@ function LevelSpellState:getPriority()
 end
 
 function LevelSpellState:needToRun(game_context, bot_context)
-  return bot_context.magic_to_level ~= nil and game_context.is_in_battle and game_context.overworld_x == 2
+  return bot_context.magic_to_level ~= nil and game_context.is_in_battle
 end
 
 function LevelSpellState:getText(game_context, bot_context)
@@ -595,6 +626,8 @@ function LevelSpellState:getText(game_context, bot_context)
 end
 
 function LevelSpellState:run(game_context, bot_context)
+  if game_context.overworld_x ~= 2 then return end
+  
   local keys = {}
   
   if game_context.active_character > bot_context.magic_to_level.character_index then
@@ -623,12 +656,12 @@ function LevelSpellState:run(game_context, bot_context)
     end
   elseif game_context.cursor_location == 0 then
     -- select all characters and queue the spell
-    if game_context.target_character ~= 132 then keys.up = 1
+    if config.LEVEL_SPELL_MULTICAST and game_context.target_character ~= 132 then keys.up = 1
     else keys.A = 1
     end
   elseif game_context.cursor_location == 255 then
     -- select all enemies and queue the spell
-    if game_context.target_enemy ~= 136 then keys.up = 1
+    if config.LEVEL_SPELL_MULTICAST and game_context.target_enemy ~= 136 then keys.up = 1
     else keys.A = 1
     end
   end
@@ -665,28 +698,7 @@ function LevelHPState:run(game_context, bot_context)
         fightcharacter(game_context, keys, bot_context.hp_to_level.character_index)
       end
     else
-      -- try to cast some white magic to spend MP (might as well level that too)
-      -- ALWAYS cast on character 4 so it won't mess with our HP leveling
-      local character = game_context.characters[game_context.active_character]
-      local did_cast_spell = false
-      
-      if character.magic.current_mp >= config.MP_FLOOR then
-        local esuna_spell_index = getspellindex(game_context.active_character, SPELL_ESUNA)
-        local cure_spell_index = getspellindex(game_context.active_character, SPELL_CURE)
-        if esuna_spell_index ~= nil then
-          castwhitemagic(game_context, keys, esuna_spell_index, 3)
-          did_cast_spell = true
-        elseif cure_spell_index ~= nil then
-          castwhitemagic(game_context, keys, cure_spell_index, 3)
-          did_cast_spell = true
-        end
-      end
-      
-      if not did_cast_spell then
-        FCEU.print("no magic/mp to cast for character " .. game_context.active_character)
-        -- auto attack
-        keys.A = 1
-      end
+      completeTurnWithMinimalImpact(game_context, bot_context)
     end
     
     joypad.set(1, keys)
@@ -846,6 +858,8 @@ local function getBotContext(game_context, bot_context)
   local max_character = 2
   if config.LEVEL_CHARACTER_4 then max_character = 3 end
   for character_index = 0,max_character do
+    local character = game_context.characters[character_index]
+    
     -- check for uncapped spells until we find *one* to level
     if bot_context.magic_to_level == nil then
       for spell_index = 0,15 do
@@ -854,23 +868,27 @@ local function getBotContext(game_context, bot_context)
           local spell_skill = memory.readbyte(0x6200 + (character_index * 0x0040) + 0x0010 + (spell_index * 2) + 1)
           local spell_skill_queue = memory.readbyte(0x7CF7 + (character_index * 0x0010) + spell_index) 
           
-          if spell_level < config.TARGET_SPELL_LEVEL and spell_skill + spell_skill_queue < 100 then
+          if spell_level < config.TARGET_SPELL_LEVEL and spell_skill_queue == 100 then
+            bot_context.has_battle_capped_spell = true
+          end
+          
+          if bot_context.magic_to_level == nil and spell_level < config.TARGET_SPELL_LEVEL and spell_skill_queue < 100 and character.magic.current_mp >= config.MP_FLOOR then
             bot_context.magic_to_level = {}
             bot_context.magic_to_level.character_index = character_index
             bot_context.magic_to_level.spell_index = spell_index
             bot_context.magic_to_level.spell_level = spell_level
             bot_context.magic_to_level.spell_skill = spell_skill
             bot_context.magic_to_level.spell_skill_queue = spell_skill_queue
-            break
-          elseif spell_level < config.TARGET_SPELL_LEVEL and spell_skill + spell_skill_queue == 100 then
-            bot_context.has_battle_capped_spell = true
           end
         end
       end
     end
     
-    local character = game_context.characters[character_index]
-
+    -- cancel leveling magic if we have a capped spell
+    if bot_context.has_battle_capped_spell then
+      bot_context.magic_to_level = nil
+    end
+    
     -- check for capped HP
     if character.health.max_hp >= config.TARGET_HP then
       bot_context.capped_hp_characters = bot_context.capped_hp_characters + 1
