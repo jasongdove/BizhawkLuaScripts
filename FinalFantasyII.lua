@@ -11,16 +11,17 @@ config.TARGET_MP = 999
 config.TARGET_GIL = 16000000
 config.USE_TURBO = true
 config.HP_FLOOR_PCT = 0.40
+-- MP_FLOOR may need to be set to 1 at first, but 16 is the best spot once you have > 20ish MP and spells start getting leveled
 config.MP_FLOOR = 16
 -- disabling the INN will make HP and MP leveling difficult, since they require refilling resources
 config.USE_INN = true
 config.INN = "Mysidia"
 -- when your stats get too high, you may want to switch to magic (LEVEL_BY_FIRE = true) if weapon attacks miss
-config.LEVEL_BY_FIRE = true
+config.LEVEL_BY_FIRE = false
 -- this is normally set to false because character 4 can't use the same trick (queue spell and cancel), since the round ends as soon as character 4 queues anything
 -- enabling this feature will make the magic leveling process SLOW. HP leveling should be okay
-config.LEVEL_CHARACTER_4 = false
-config.LEVEL_SPELL_MULTICAST = false
+config.LEVEL_CHARACTER_4 = true
+config.LEVEL_SPELL_MULTICAST = true
 
 local SPELL_CURE = 0xD4
 local SPELL_ESUNA = 0xD7
@@ -197,12 +198,21 @@ function completeTurnWithMinimalImpact(game_context, bot_context, keys)
   if bot_context.hp_to_level == nil then
     -- otherwise pick a random character
     target_character = math.random(0, 3)
+  else
+    -- if we're leveling character 4's HP, pick someone else to cast on
+    if config.LEVEL_CHARACTER_4 and bot_context.hp_to_level.character_index == 3 then
+      target_character = math.random(0, 2)
+    end
   end
   
-  if character.magic.current_mp >= config.MP_FLOOR then
+  if character.status == 0 and character.magic.current_mp >= config.MP_FLOOR then
     local esuna_spell_index = getspellindex(game_context.active_character, SPELL_ESUNA)
     local cure_spell_index = getspellindex(game_context.active_character, SPELL_CURE)
     if esuna_spell_index ~= nil then
+      -- always cast esuna on the character who needs hp leveling
+      if bot_context.hp_to_level ~= nil then
+        target_character = bot_context.hp_to_level.character_index
+      end
       castwhitemagic(game_context, keys, esuna_spell_index, target_character)
       did_cast_spell = true
     elseif cure_spell_index ~= nil then
@@ -359,6 +369,8 @@ end
 function WinBattleState:needToRun(game_context, bot_context)
   if not game_context.is_in_battle then return false end
   
+  --FCEU.print("reload count: " .. bot_context.reload_count)
+  
   return bot_context.has_battle_capped_spell
     or bot_context.has_low_mp
     or bot_context.has_uncapped_gil
@@ -465,6 +477,7 @@ end
 function SaveGameState:run(game_context, bot_context)
   -- save the state (not accessible outside of a single instance of this bot)
   savestate.save(bot_context.save_state)
+  --FCEU.print("saving")  
   
   -- mark the save as completed
   bot_context.is_save_required = false
@@ -497,6 +510,8 @@ end
 function ReloadGameState:run(game_context, bot_context)
   -- reload the state (only works if we saved at least once during this instance)
   savestate.load(bot_context.save_state)
+  
+  bot_context.reload_count = bot_context.reload_count + 1
 end
 
 UseMysidiaInnState = State:new()
@@ -676,7 +691,9 @@ function LevelHPState:getPriority()
 end
 
 function LevelHPState:needToRun(game_context, bot_context)
-  return bot_context.hp_to_level ~= nil and game_context.is_in_battle
+  return bot_context.hp_to_level ~= nil
+    and not bot_context.hp_to_level.will_level
+    and game_context.is_in_battle
 end
 
 function LevelHPState:getText(game_context, bot_context)
@@ -698,7 +715,19 @@ function LevelHPState:run(game_context, bot_context)
         fightcharacter(game_context, keys, bot_context.hp_to_level.character_index)
       end
     else
-      completeTurnWithMinimalImpact(game_context, bot_context, keys)
+      local living_enemy_count = 0
+      for enemy_index = 0,7 do
+        if game_context.battle.enemies[enemy_index].is_alive then
+          living_enemy_count = living_enemy_count + 1
+        end
+      end
+
+      -- if we have a bunch of enemies left, kill some
+      if living_enemy_count > 1 then
+        keys.A = 1
+      else
+        completeTurnWithMinimalImpact(game_context, bot_context, keys)
+      end
     end
     
     joypad.set(1, keys)
@@ -712,7 +741,7 @@ function LevelMPState:getPriority()
 end
 
 function LevelMPState:needToRun(game_context, bot_context)
-  return bot_context.has_uncapped_mp
+  return game_context.is_in_battle and bot_context.has_uncapped_mp
 end
 
 function LevelMPState:getText(game_context, bot_context)
@@ -749,7 +778,6 @@ function LevelMPState:run(game_context, bot_context)
   end
 end
 
-
 HealCharacterState = State:new()
 
 function HealCharacterState:getPriority()
@@ -757,7 +785,9 @@ function HealCharacterState:getPriority()
 end
 
 function HealCharacterState:needToRun(game_context, bot_context)
-  return bot_context.hp_to_level == nil and bot_context.low_hp_characters > 0
+  return game_context.is_in_battle
+    and (bot_context.hp_to_level == nil or not bot_context.hp_to_level.will_level)
+    and bot_context.low_hp_characters > 0
 end
 
 function HealCharacterState:getText(game_context, bot_context)
@@ -813,6 +843,76 @@ function HealCharacterState:run(game_context, bot_context)
   joypad.set(1, keys)
 end
 
+EsunaCharacterState = State:new()
+
+function EsunaCharacterState:getPriority()
+  return 8
+end
+
+function EsunaCharacterState:needToRun(game_context, bot_context)
+  if not game_context.is_in_battle then return false end
+  
+  for character_index = 0,3 do
+    if game_context.characters[character_index].status ~= 0 and game_context.characters[character_index].status ~= 512 then
+      return true
+    end
+  end
+  
+  bot_context.is_esuna_queued = false
+  return false
+end
+
+function EsunaCharacterState:getText(game_context, bot_context)
+  return "esuna character"
+end
+
+function EsunaCharacterState:run(game_context, bot_context)
+  local keys = {}
+  
+  -- find abnormal status hp character
+  local abnormal_status_character_index
+  for character_index = 0,3 do
+    if game_context.characters[character_index].status ~= 0 then
+      abnormal_status_character_index = character_index
+      break
+    end
+  end
+
+  if abnormal_status_character_index == nil then return end
+    
+  -- find first character with ESUNA
+  local esuna_character_index
+  local esuna_spell_index
+  for character_index = 0,3 do
+    esuna_spell_index = getspellindex(character_index, SPELL_ESUNA)
+    if game_context.characters[character_index].status == 0 and esuna_spell_index ~= nil then
+      esuna_character_index = character_index
+      break
+    end
+  end
+  
+  if esuna_character_index == nil then return end
+  
+  if not bot_context.is_esuna_queued then
+    if game_context.active_character > esuna_character_index then
+      -- cancel actions to get to character who will cast ESUNA
+      keys.B = 1
+    elseif game_context.active_character < esuna_character_index then
+      completeTurnWithMinimalImpact(game_context, bot_context, keys)
+    else
+      castwhitemagic(game_context, keys, esuna_spell_index, abnormal_status_character_index)
+      bot_context.is_esuna_queued = true
+    end
+  else
+    if game_context.active_character ~= esuna_character_index then
+      completeTurnWithMinimalImpact(game_context, bot_context, keys)
+    else
+      castwhitemagic(game_context, keys, esuna_spell_index, abnormal_status_character_index)
+    end    
+  end
+  
+  joypad.set(1, keys)
+end
 
 local function bitnumer(p)
   return 2 ^ (p - 1)  -- 1-based indexing
@@ -883,7 +983,13 @@ local function getGameContext(game_context)
     else
       character.is_in_front = memory.readbyte(0x6200 + (character_index * 0x0040) + 0x0035) == 0x01
     end
-
+    
+    if game_context.is_in_battle then
+      character.status = memory.readword(0x7D82 + (character_index * 0x0030))
+    else
+      character.status = memory.readbyte(0x6100 + (character_index * 0x0040) + 0x0001)
+    end
+    
     game_context.characters[character_index] = character
   end
   
@@ -917,6 +1023,21 @@ local function getBotContext(game_context, bot_context)
   bot_context.has_low_mp = false
   bot_context.low_hp_characters = 0
   bot_context.capped_hp_characters = 0
+  
+  if bot_context.previously_in_battle == nil then
+    bot_context.previously_in_battle = false
+  end
+  
+  if bot_context.reload_count == nil then
+    bot_context.reload_count = 0
+  end
+  
+  -- leaving battle
+  if not game_context.is_in_battle and bot_context.previously_in_battle then
+    bot_context.reload_count = 0
+  end
+  
+  bot_context.previously_in_battle = game_context.is_in_battle
   
   -- loop through all characters
   local max_character = 2
@@ -959,7 +1080,7 @@ local function getBotContext(game_context, bot_context)
     end
     
     -- check for low MP
-    if character.magic.current_mp <= config.MP_FLOOR then
+    if character.magic.current_mp <= config.MP_FLOOR and character.magic.max_mp >= config.MP_FLOOR then
       bot_context.has_low_mp = true
     end
 
@@ -970,9 +1091,10 @@ local function getBotContext(game_context, bot_context)
     
     -- check for uncapped HP until we find *one* character to level
     if bot_context.hp_to_level == nil then
-      if character.health.max_hp < config.TARGET_HP and character.health.current_hp / character.health.max_hp > config.HP_FLOOR_PCT then
+      if character.health.max_hp < config.TARGET_HP then
         bot_context.hp_to_level = {}
         bot_context.hp_to_level.character_index = character_index
+        bot_context.hp_to_level.will_level = character.health.current_hp / character.health.max_hp <= config.HP_FLOOR_PCT
         
         -- if this character is in the back row, they can't melee themselves, so use another character
         -- TODO: improve this logic. defaulting to character 4 for now, who is likely unleveled because they get swapped in/out often
@@ -1022,6 +1144,7 @@ do
   states[8] = LevelHPState:new()
   states[9] = LevelMPState:new()
   states[10] = HealCharacterState:new()
+  states[11] = EsunaCharacterState:new()
   
   bot_context.save_state = savestate.object()
   savestate.save(bot_context.save_state)
