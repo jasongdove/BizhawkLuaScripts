@@ -4,12 +4,13 @@ local config = {}
 config.TARGET_LEVEL = 55
 config.HP_FLOOR_PCT = 0.5
 config.MP_FLOOR = 5
-config.USE_TURBO = true
+config.USE_TURBO = false
 config.UNATTENDED = true
 config.LEFT_RIGHT = true
 
-local SPELL_CURE_1 = 14
-local SPELL_CURE_2 = 15
+local SPELL_CURE_1 = 0x0E
+local SPELL_CURE_2 = 0x0F
+local SPELL_HEAL = 0x12
 
 local SPELL_LIGHTNING_2 = 0x24
 
@@ -47,10 +48,28 @@ local function fightEnemy(game_context, keys, target_enemy)
       keys.A = 1
     end
   elseif game_context.battle.cursor_state == 0x04 then -- select target
-    if game_context.battle.cursor_target > target_enemy then keys.left = 1
-    elseif game_context.battle.cursor_target < target_enemy then keys.right = 1
+    if game_context.arrangement == 20 then
+      if target_enemy == 0 then
+        if game_context.battle.cursor_target > target_enemy then keys.left = 1
+        else keys.A = 1
+        end
+      elseif target_enemy == 1 then
+        if game_context.battle.cursor_target == 0 then keys.right = 1
+        elseif game_context.battle.cursor_target == 2 then keys.up = 1
+        else keys.A = 1
+        end
+      elseif target_enemy == 2 then
+        if game_context.battle.cursor_target == 0 then keys.right = 1
+        elseif game_context.battle.cursor_target == 1 then keys.down = 1
+        else keys.A = 1
+        end
+      end 
     else
-      keys.A = 1
+      if game_context.battle.cursor_target > target_enemy then keys.left = 1
+      elseif game_context.battle.cursor_target < target_enemy then keys.right = 1
+      else
+        keys.A = 1
+      end
     end
   else
     -- back out of any other menu
@@ -172,6 +191,35 @@ local function fightMeleeEnemy(game_context, keys)
       keys.B = 1
     end
   end
+end
+
+local function completeTurn(game_context, keys)
+  local character = game_context.characters[game_context.battle.active_character]
+  
+  if character.id == 17 then -- rydia
+    -- check for a magic target
+    local magic_target = -1
+    
+    for enemy_index = 0,7 do
+      local enemy = game_context.battle.enemies[enemy_index]
+      if enemy ~= nil and enemy.is_alive and enemy.defense >= 100 then
+        magic_target = enemy_index
+        break
+      end
+    end
+    
+    if magic_target ~= -1 then
+    
+      -- cast spell against magic_target
+      local lightning_spell_index = getBlackSpellIndex(game_context, game_context.battle.active_character, SPELL_LIGHTNING_2)
+      if lightning_spell_index ~= nil then
+        castBlackMagic(game_context, keys, lightning_spell_index, magic_target)
+        return
+      end
+    end
+  end
+
+  fightMeleeEnemy(game_context, keys)
 end
 
 -- base state class
@@ -307,39 +355,14 @@ function WinBattleState:getText(game_context, bot_context)
 end
 
 function WinBattleState:run(game_context, bot_context, keys)
-  local character = game_context.characters[game_context.battle.active_character]
-  
-  if character.id == 17 then -- rydia
-    -- check for a magic target
-    local magic_target = -1
-    
-    for enemy_index = 0,7 do
-      local enemy = game_context.battle.enemies[enemy_index]
-      if enemy ~= nil and enemy.is_alive and enemy.defense >= 100 then
-        magic_target = enemy_index
-        break
-      end
-    end
-    
-    if magic_target ~= -1 then
-    
-      -- cast spell against magic_target
-      local lightning_spell_index = getBlackSpellIndex(game_context, game_context.battle.active_character, SPELL_LIGHTNING_2)
-      if lightning_spell_index ~= nil then
-        castBlackMagic(game_context, keys, lightning_spell_index, magic_target)
-        return
-      end
-    end
-  end
-
-  fightMeleeEnemy(game_context, keys)
+  completeTurn(game_context, keys)
 end
 
 -- idle
 AcceptBattleRewardsState = State:new()
 
 function AcceptBattleRewardsState:getPriority()
-  return 4
+  return 5
 end
 
 function AcceptBattleRewardsState:needToRun(game_context, bot_context)
@@ -422,7 +445,7 @@ function HealCharacterState:run(game_context, bot_context, keys)
   
   if game_context.battle.active_character ~= heal_character_index then
     -- melee to get to character who will cast HEAL
-    fightMeleeEnemy(game_context, keys)
+    completeTurn(game_context, keys)
   else
     castWhiteMagic(game_context, keys, cure_spell_index, low_hp_character_index)
   end
@@ -444,7 +467,7 @@ function SaveGameState:getText(game_context, bot_context)
   return "save"
 end
 
-function SaveGameState:run(game_context, bot_context)
+function SaveGameState:run(game_context, bot_context, keys)
   -- save the state (not accessible outside of a single instance of this bot)
   savestate.save(bot_context.save_state)
   emu.print('saving...')
@@ -482,7 +505,7 @@ function ReloadGameState:getText(game_context, bot_context)
   return "reload"
 end
 
-function ReloadGameState:run(game_context, bot_context)
+function ReloadGameState:run(game_context, bot_context, keys)
   if game_context.is_in_battle then
     emu.print("reloading: in battle")
   else
@@ -501,6 +524,56 @@ end
 
 local function hasbit(x, p)
   return x % (p + p) >= p
+end
+
+HealCharacterStatusState = State:new()
+
+function HealCharacterStatusState:getPriority()
+  return 4
+end
+
+function HealCharacterStatusState:needToRun(game_context, bot_context)
+  --if not game_context.is_in_battle then return false end
+  
+  for character_index = 0,4 do
+    if game_context.characters[character_index].status ~= 0 then
+      return true
+    end
+  end
+  
+  return false
+end
+
+function HealCharacterStatusState:getText(game_context, bot_context)
+  return "heal character status"
+end
+
+function HealCharacterStatusState:run(game_context, bot_context, keys)
+  if game_context.is_in_battle then
+    local character = game_context.characters[game_context.battle.active_character]
+    if character == nil then return end
+    
+    local heal_spell_index = getWhiteSpellIndex(game_context, game_context.battle.active_character, SPELL_HEAL)
+    if character.status ~= 0 or heal_spell_index == nil then
+      completeTurn(game_context, keys)
+    else
+      -- find abnormal status character
+      local abnormal_status_character_index
+      for character_index = 0,4 do
+        if game_context.characters[character_index].status ~= 0 then
+          abnormal_status_character_index = character_index
+          break
+        end
+      end
+
+      if abnormal_status_character_index == nil then
+        completeTurn(game_context, keys)
+      else
+        castWhiteMagic(game_context, keys, heal_spell_index, game_context.battle.active_character)
+      end
+    end
+  else
+  end
 end
 
 local function getCharacterHP(game_context, character_index)
@@ -574,6 +647,12 @@ local function getGameContext(game_context)
     character.health = getCharacterHP(game_context, character_index)
     character.magic = getCharacterMP(game_context, character_index)
     
+    if game_context.is_in_battle then
+      character.status = memory.readword(0x7E2000 + (character_index * 0x80) + 0x03)
+    else
+      character.status = memory.readword(0x7E1000 + (character_index * 0x40) + 0x03)
+    end
+    
     game_context.characters[character_index] = character
   end
   
@@ -588,6 +667,7 @@ local function getGameContext(game_context)
     game_context.battle.cursor_spell_position = memory.readbyte(0x7E0063)
     game_context.battle.cursor_target = memory.readbyte(0x7EEF8D)
     game_context.battle.active_character = memory.readbyte(0x7E00D0)
+    game_context.battle.arrangement = memory.readbyte(0x7E29A3)
     
     game_context.battle.enemies = {}
     for enemy_index = 0,7 do
@@ -652,8 +732,8 @@ do
   states[4] = HealCharacterState:new()
   states[5] = SaveGameState:new()  
   states[6] = ReloadGameState:new()
+  states[7] = HealCharacterStatusState:new()
   -- states[6] = UseMysidiaInnState:new()
-  -- states[11] = EsunaCharacterState:new()
   
   local state_to_run = nil
   
