@@ -4,7 +4,7 @@ local config = {}
 config.TARGET_LEVEL = 55
 config.HP_FLOOR_PCT = 0.5
 config.MP_FLOOR = 5
-config.USE_TURBO = false
+config.USE_TURBO = true
 config.UNATTENDED = true
 config.LEFT_RIGHT = true
 
@@ -321,7 +321,7 @@ function WinBattleState:run(game_context, bot_context, keys)
       end
     end
     
-    if magic_target ~= nil then
+    if magic_target ~= -1 then
     
       -- cast spell against magic_target
       local lightning_spell_index = getBlackSpellIndex(game_context, game_context.battle.active_character, SPELL_LIGHTNING_2)
@@ -426,6 +426,73 @@ function HealCharacterState:run(game_context, bot_context, keys)
   else
     castWhiteMagic(game_context, keys, cure_spell_index, low_hp_character_index)
   end
+end
+
+SaveGameState = State:new()
+
+function SaveGameState:getPriority()
+  -- high priority
+  return 1000
+end
+
+function SaveGameState:needToRun(game_context, bot_context)
+  -- only save in the overworld
+  return bot_context.is_save_required and game_context.is_in_overworld
+end
+
+function SaveGameState:getText(game_context, bot_context)
+  return "save"
+end
+
+function SaveGameState:run(game_context, bot_context)
+  -- save the state (not accessible outside of a single instance of this bot)
+  savestate.save(bot_context.save_state)
+  emu.print('saving...')
+  
+  -- mark the save as completed
+  bot_context.is_save_required = false
+end
+
+ReloadGameState = State:new()
+
+function ReloadGameState:getPriority()
+  -- higher priority
+  return 1001
+end
+
+function ReloadGameState:needToRun(game_context, bot_context)
+  if bot_context.wait_for_turn then
+    return false
+  end
+
+  -- TODO: reload when someone is stoned? will be easier than casting esuna as a quick fix
+  for character_index = 0,4 do
+    local character = game_context.characters[character_index]
+    
+    if character.id ~= 0 and character.health.current_hp == 0 then
+      emu.print("need to reload for char: " .. character.id .. "/" .. character.health.max_hp)
+      return true
+    end
+  end
+
+  return false
+end
+
+function ReloadGameState:getText(game_context, bot_context)
+  return "reload"
+end
+
+function ReloadGameState:run(game_context, bot_context)
+  if game_context.is_in_battle then
+    emu.print("reloading: in battle")
+  else
+    emu.print("reloading: not in battle")
+  end
+  
+  -- reload the state (only works if we saved at least once during this instance)
+  savestate.load(bot_context.save_state)
+  
+  bot_context.reload_count = (bot_context.reload_count or 0) + 1
 end
 
 local function bitnumer(p)
@@ -554,7 +621,22 @@ local function getBotContext(game_context, bot_context)
       end
     end
   end
-
+  
+  if bot_context.save_state == nil then
+    bot_context.save_state = savestate.create()
+    bot_context.is_save_required = game_context.is_in_overworld
+  end
+  
+  if game_context.is_in_battle and not bot_context.was_in_battle then
+    bot_context.wait_for_turn = true
+  end
+  
+  bot_context.was_in_battle = game_context.is_in_battle
+  
+  if bot_context.wait_for_turn and game_context.battle.cursor_state ~= 0 then
+    bot_context.wait_for_turn = false
+  end
+  
   return bot_context
 end
 
@@ -568,8 +650,8 @@ do
   states[2] = WinBattleState:new()
   states[3] = AcceptBattleRewardsState:new()
   states[4] = HealCharacterState:new()
-  -- states[4] = SaveGameState:new()  
-  -- states[5] = ReloadGameState:new()
+  states[5] = SaveGameState:new()  
+  states[6] = ReloadGameState:new()
   -- states[6] = UseMysidiaInnState:new()
   -- states[11] = EsunaCharacterState:new()
   
