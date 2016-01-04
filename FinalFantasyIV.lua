@@ -1,10 +1,10 @@
 -- Final Fantasy IV Bot
 
 local config = {}
-config.TARGET_LEVEL = 55
-config.HP_FLOOR_PCT = 0.5
-config.MP_FLOOR = 5
-config.USE_TURBO = false
+config.TARGET_LEVEL = 60
+config.HP_FLOOR_PCT = 0.65
+config.MP_FLOOR = 20
+config.USE_TURBO = true
 config.UNATTENDED = true
 config.LEFT_RIGHT = true
 
@@ -38,6 +38,152 @@ function spairs(t, order)
   end
 end
 
+local function selectTargetAndCast(game_context, keys, target_enemy)
+  local cursor_target = game_context.battle.cursor_target
+
+  if game_context.battle.is_back_attack then
+    -- get on the right side of the screen
+    if cursor_target >= 8 then keys.right = 1 return end
+    
+    if game_context.battle.arrangement == 20 then
+      if cursor_target == 0 and (target_enemy >= 1 and target_enemy <= 2) then keys.left = 1
+      elseif (cursor_target >= 1 and cursor_target <= 2) and target_enemy == 0 then keys.right = 1
+      elseif cursor_target > target_enemy then keys.up = 1
+      elseif cursor_target < target_enemy then keys.down = 1
+      else keys.A = 1
+      end
+    elseif game_context.battle.arrangement == 22 then
+      if (cursor_target >= 0 and cursor_target <= 2) and (target_enemy >= 3 and target_enemy <= 4) then keys.right = 1
+      elseif (cursor_target >= 3 and cursor_target <= 4) and (target_enemy >= 0 and target_enemy <= 2) then keys.left = 1
+      elseif cursor_target > target_enemy then keys.up = 1
+      elseif cursor_target < target_enemy then keys.down = 1
+      else keys.A = 1
+      end
+    elseif game_context.battle.arrangement == 23 then
+      if (cursor_target >= 0 and cursor_target <= 1) and (target_enemy >= 2 and target_enemy <= 3) then keys.right = 1
+      elseif (cursor_target >= 2 and cursor_target <= 3) and (target_enemy >= 0 and target_enemy <= 1) then keys.left = 1
+      elseif target_enemy <= 1 and cursor_target > target_enemy then keys.up = 1
+      elseif target_enemy <= 1 and cursor_target < target_enemy then keys.down = 1
+      elseif target_enemy >= 2 and cursor_target > target_enemy then keys.down = 1
+      elseif target_enemy >= 2 and cursor_target < target_enemy then keys.up = 1
+      else keys.A = 1
+      end
+    elseif game_context.battle.arrangement == 34 then
+      if target_enemy > cursor_target then keys.left = 1
+      elseif target_enemy > cursor_target then keys.right = 1
+      else keys.A = 1
+      end
+    elseif game_context.battle.arrangement == 48 then
+      if (cursor_target >= 0 and cursor_target <= 1) and (target_enemy >= 2 and target_enemy <= 4) then keys.up = 1
+      elseif (cursor_target >= 2 and cursor_target <= 4) and (target_enemy >= 0 and target_enemy <= 1) then keys.down = 1
+      elseif cursor_target > target_enemy then keys.right = 1
+      elseif cursor_target < target_enemy then keys.left = 1
+      else keys.A = 1
+      end
+    elseif game_context.battle.arrangement == 85 then
+      if (cursor_target >= 0 and cursor_target <= 1) and target_enemy == 2 then keys.left = 1
+      elseif cursor_target == 2 and (target_enemy >= 0 and target_enemy <= 1) then keys.right = 1
+      elseif cursor_target > target_enemy then keys.up = 1
+      elseif cursor_target < target_enemy then keys.down = 1
+      else keys.A = 1
+      end
+    elseif game_context.battle.arrangement == 86 then
+      if target_enemy == 0 then
+        if cursor_target == 1 then keys.right = 1
+        elseif game_context.battle_cursor_target == 2 then keys.left = 1
+        else keys.A = 1
+        end
+      elseif target_enemy == 1 then
+        if cursor_target ~= target_enemy then keys.left = 1
+        else keys.A = 1
+        end
+      elseif target_enemy == 2 then
+        if cursor_target ~= target_enemy then keys.right = 1
+        else keys.A = 1
+        end
+      end
+    else
+      if cursor_target >= 8 then keys.right = 1
+      elseif cursor_target > target_enemy then keys.left = 1
+      elseif cursor_target < target_enemy then keys.right = 1
+      else
+        keys.A = 1
+      end
+    end
+  else
+    if game_context.battle.arrangement == 1 then
+      if (cursor_target >= 0 and cursor_target <= 1) and (target_enemy >= 2 and target_enemy <= 3) then keys.down = 1
+      elseif (cursor_target >= 2 and cursor_target <= 3) and (target_enemy >= 0 and target_enemy <= 1) then keys.up = 1
+      elseif target_enemy == 0 and cursor_target == 1 then keys.left = 1
+      elseif target_enemy == 1 and cursor_target == 0 then keys.right = 1
+      elseif target_enemy == 2 and cursor_target == 3 then keys.right = 1
+      elseif target_enemy == 3 and cursor_target == 4 then keys.left = 1
+      else keys.A = 1
+    end
+    elseif game_context.battle.arrangement == 20 then
+      if target_enemy == 0 then
+        if cursor_target > target_enemy then keys.left = 1
+        else keys.A = 1
+        end
+      elseif target_enemy == 1 then
+        if cursor_target == 0 then keys.right = 1
+        elseif cursor_target == 2 then keys.up = 1
+        else keys.A = 1
+        end
+      elseif target_enemy == 2 then
+        if cursor_target == 0 then keys.right = 1
+        elseif cursor_target == 1 then keys.down = 1
+        else keys.A = 1
+        end
+      end 
+    elseif game_context.battle.arrangement == 22 then
+      if (cursor_target >= 0 and cursor_target <= 2) and (target_enemy >= 3 and target_enemy <= 4) then keys.left = 1
+      elseif (cursor_target >= 3 and cursor_target <= 4) and (target_enemy >= 0 and target_enemy <= 2) then keys.right = 1
+      elseif cursor_target > target_enemy then keys.up = 1
+      elseif cursor_target < target_enemy then keys.down = 1
+      else keys.A = 1
+      end
+    elseif game_context.battle.arrangement == 23 then
+      if (cursor_target >= 0 and cursor_target <= 1) and (target_enemy >= 2 and target_enemy <= 3) then keys.left = 1
+      elseif (cursor_target >= 2 and cursor_target <= 3) and (target_enemy >= 0 and target_enemy <= 1) then keys.right = 1
+      elseif target_enemy <= 1 and cursor_target > target_enemy then keys.up = 1
+      elseif target_enemy <= 1 and cursor_target < target_enemy then keys.down = 1
+      elseif target_enemy >= 2 and cursor_target > target_enemy then keys.down = 1
+      elseif target_enemy >= 2 and cursor_target < target_enemy then keys.up = 1
+      else keys.A = 1
+      end
+    elseif game_context.battle.arrangement == 48 then
+      if (cursor_target >= 0 and cursor_target <= 1) and (target_enemy >= 2 and target_enemy <= 4) then keys.up = 1
+      elseif (cursor_target >= 2 and cursor_target <= 4) and (target_enemy >= 0 and target_enemy <= 1) then keys.down = 1
+      elseif cursor_target > target_enemy then keys.left = 1
+      elseif cursor_target < target_enemy then keys.right = 1
+      else keys.A = 1
+      end
+    elseif game_context.battle.arrangement == 86 then
+      if target_enemy == 0 then
+        if cursor_target == 1 then keys.left = 1
+        elseif game_context.battle_cursor_target == 2 then keys.right = 1
+        else keys.A = 1
+        end
+      elseif target_enemy == 1 then
+        if cursor_target ~= target_enemy then keys.right = 1
+        else keys.A = 1
+        end
+      elseif target_enemy == 2 then
+        if cursor_target ~= target_enemy then keys.left = 1
+        else keys.A = 1
+        end
+      end
+    else
+      if cursor_target > target_enemy then keys.left = 1
+      elseif cursor_target < target_enemy then keys.right = 1
+      else
+        keys.A = 1
+      end
+    end
+  end
+end
+
 local function fightEnemy(game_context, keys, target_enemy)
   if game_context.battle.cursor_state == 0x01 then -- base menu
     if game_context.battle.cursor_position ~= 0 then
@@ -48,29 +194,7 @@ local function fightEnemy(game_context, keys, target_enemy)
       keys.A = 1
     end
   elseif game_context.battle.cursor_state == 0x04 then -- select target
-    if game_context.arrangement == 20 then
-      if target_enemy == 0 then
-        if game_context.battle.cursor_target > target_enemy then keys.left = 1
-        else keys.A = 1
-        end
-      elseif target_enemy == 1 then
-        if game_context.battle.cursor_target == 0 then keys.right = 1
-        elseif game_context.battle.cursor_target == 2 then keys.up = 1
-        else keys.A = 1
-        end
-      elseif target_enemy == 2 then
-        if game_context.battle.cursor_target == 0 then keys.right = 1
-        elseif game_context.battle.cursor_target == 1 then keys.down = 1
-        else keys.A = 1
-        end
-      end 
-    else
-      if game_context.battle.cursor_target > target_enemy then keys.left = 1
-      elseif game_context.battle.cursor_target < target_enemy then keys.right = 1
-      else
-        keys.A = 1
-      end
-    end
+    selectTargetAndCast(game_context, keys, target_enemy)
   else
     -- back out of any other menu
     keys.B = 1
@@ -150,12 +274,7 @@ local function castBlackMagic(game_context, keys, spell_index, target_enemy)
     else keys.A = 1
     end
   elseif game_context.battle.cursor_state == 0x0C then
-    -- select the target and queue the spell
-    if game_context.battle.cursor_target ~= target_enemy then
-      keys.right = 1
-    else
-      keys.A = 1
-    end
+    selectTargetAndCast(game_context, keys, target_enemy)
   end
 end
 
@@ -374,13 +493,15 @@ function AcceptBattleRewardsState:getText(game_context, bot_context)
 end
 
 function AcceptBattleRewardsState:run(game_context, bot_context, keys)
-    -- dismiss the dialog (by tapping 'A' on and off)
-    if bot_context.dismissing_battle_dialog then 
-      bot_context.dismissing_battle_dialog = false
-    else
-      bot_context.dismissing_battle_dialog = true
-      keys.A = 1
-    end
+  bot_context.is_save_required = true
+
+  -- dismiss the dialog (by tapping 'A' on and off)
+  if bot_context.dismissing_battle_dialog then 
+    bot_context.dismissing_battle_dialog = false
+  else
+    bot_context.dismissing_battle_dialog = true
+    keys.A = 1
+  end
 end
 
 HealCharacterState = State:new()
@@ -470,7 +591,7 @@ end
 function SaveGameState:run(game_context, bot_context, keys)
   -- save the state (not accessible outside of a single instance of this bot)
   savestate.save(bot_context.save_state)
-  emu.print('saving...')
+  --emu.print('saving...')
   
   -- mark the save as completed
   bot_context.is_save_required = false
@@ -533,7 +654,7 @@ function HealCharacterStatusState:getPriority()
 end
 
 function HealCharacterStatusState:needToRun(game_context, bot_context)
-  --if not game_context.is_in_battle then return false end
+  if not game_context.is_in_battle then return false end
   
   for character_index = 0,4 do
     if game_context.characters[character_index].status ~= 0 then
@@ -554,7 +675,7 @@ function HealCharacterStatusState:run(game_context, bot_context, keys)
     if character == nil then return end
     
     local heal_spell_index = getWhiteSpellIndex(game_context, game_context.battle.active_character, SPELL_HEAL)
-    if character.status ~= 0 or heal_spell_index == nil then
+    if heal_spell_index == nil then
       completeTurn(game_context, keys)
     else
       -- find abnormal status character
@@ -569,7 +690,7 @@ function HealCharacterStatusState:run(game_context, bot_context, keys)
       if abnormal_status_character_index == nil then
         completeTurn(game_context, keys)
       else
-        castWhiteMagic(game_context, keys, heal_spell_index, game_context.battle.active_character)
+        castWhiteMagic(game_context, keys, heal_spell_index, abnormal_status_character_index)
       end
     end
   else
@@ -668,6 +789,7 @@ local function getGameContext(game_context)
     game_context.battle.cursor_target = memory.readbyte(0x7EEF8D)
     game_context.battle.active_character = memory.readbyte(0x7E00D0)
     game_context.battle.arrangement = memory.readbyte(0x7E29A3)
+    game_context.battle.is_back_attack = memory.readbyte(0x7E030B) == 0x71
     
     game_context.battle.enemies = {}
     for enemy_index = 0,7 do
