@@ -1,4 +1,4 @@
--- Final Fantasy IV Bot
+-- Final Fantasy VI Bot
 
 local config = {}
 config.TARGET_LEVEL = 99
