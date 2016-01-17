@@ -26,6 +26,68 @@ function WinBattleState:run(game_context, bot_context, keys)
     keys.R1 = true
     bot_context.running_away = true
   else
-    keys.Circle = true
+    local character = game_context.party[game_context.battle.active_character]
+    
+    -- use limit break if it's up
+    if character.limit_break and character.id ~= 0x02 then
+      if game_context.battle.active_menu == 1 then
+        if character.main_menu_y ~= 0 then
+          pressAndRelease(bot_context, keys, "Up")
+        elseif character.main_menu_x ~= 0 then
+          pressAndRelease(bot_context, keys, "Right")
+        else
+          pressAndRelease(bot_context, keys, "Circle")
+        end
+      else
+        pressAndRelease(bot_context, keys, "Circle")
+      end 
+    -- select "magic hammer" as appropriate (NOT Yuffie)
+    elseif character.current_mp < 900 and character.has_materia_enemy_skill and character.id ~= 0x05 then
+      if game_context.battle.active_menu == 1 then
+        if character.main_menu_y ~= 0 then
+          pressAndRelease(bot_context, keys, "Up")
+        elseif character.main_menu_x < 1 then
+          pressAndRelease(bot_context, keys, "Right")
+        else
+          pressAndRelease(bot_context, keys, "Circle")
+        end
+      elseif game_context.battle.active_menu == 4 then
+        if character.menu_enemy_skill_y < 1 then
+          pressAndRelease(bot_context, keys, "Down")
+        else
+          pressAndRelease(bot_context, keys, "Circle")
+        end
+      else
+        pressAndRelease(bot_context, keys, "Circle")
+      end
+    -- select "morph" as appropriate
+    elseif character.has_materia_morph then
+      if game_context.battle.active_menu == 1 then
+        if character.main_menu_y ~= 1 then
+          pressAndRelease(bot_context, keys, "Up")
+        elseif character.main_menu_x < 1 then
+          pressAndRelease(bot_context, keys, "Right")
+        else
+          pressAndRelease(bot_context, keys, "Circle")
+        end
+      else
+        pressAndRelease(bot_context, keys, "Circle")
+      end
+    -- select "mug" as appropriate
+    elseif character.has_materia_steal then
+      if game_context.battle.active_menu == 1 then
+        if character.main_menu_y > 0 then
+          pressAndRelease(bot_context, keys, "Up")
+        elseif character.main_menu_x < 1 then
+          pressAndRelease(bot_context, keys, "Right")
+        else
+          pressAndRelease(bot_context, keys, "Circle")
+        end
+      else
+        pressAndRelease(bot_context, keys, "Circle")
+      end 
+    else
+      pressAndRelease(bot_context, keys, "Circle")
+    end
   end
 end

@@ -35,8 +35,10 @@ function FindBattleState:run(game_context, bot_context, keys)
     
     if bot_context.tapping_left then
       keys.Left = true
+      keys.Cross = true
     else
       keys.Right = true
+      keys.Cross = true
     end
 
     bot_context.left_right_countdown = bot_context.left_right_countdown - 1

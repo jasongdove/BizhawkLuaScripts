@@ -1,8 +1,6 @@
 local config = dofile 'ffvii-config.lua'
 dofile 'ffvii-util.lua'
 
-local ITEM_TENT = 0x46
-
 TentState = State:new()
 
 function TentState:needToRun(game_context, bot_context, keys)
@@ -22,18 +20,13 @@ function TentState:writeText(game_context, bot_context)
 end
 
 function TentState:run(game_context, bot_context, keys)
-  local tent_item_index = nil
-  for item_index = 0,319 do
-    if mainmemory.read_u8(0x9CBE0 + item_index * 2) == ITEM_TENT then
-      tent_item_index = item_index
-      break
-    end
-  end
-  
-  if tent_item_index == nil then
+  if game_context.items.tent_index == nil or game_context.items.tent_quantity < 2 then
     -- TODO: ???
     return
   end
+  
+  local target_item_index = game_context.items.tent_index  
+  local item_index = target_item_index - (game_context.menu.item_top_item or 0)
   
   if not game_context.menu.is_in_menu then
     pressAndRelease(bot_context, keys, "Triangle")
@@ -48,23 +41,24 @@ function TentState:run(game_context, bot_context, keys)
   elseif game_context.menu.active_menu_page == 1 and game_context.menu.item_submenu == 0 then
     pressAndRelease(bot_context, keys, "Circle")
   elseif game_context.menu.active_menu_page == 1 and game_context.menu.item_submenu == 1 then
-    -- TODO: scroll down to find "tent"
-    local top_index = 0
-    local item_index = tent_item_index
-    if tent_item_index > 9 then
-      top_index = tent_item_index - 9
-      item_index = tent_item_index - top_index
-    end
-    
-    if game_context.menu.item_top_item < top_index then
+    if target_item_index < game_context.menu.item_top_item then
+      pressAndRelease(bot_context, keys, "Up")
+    elseif target_item_index > game_context.menu.item_top_item + 9 then
       pressAndRelease(bot_context, keys, "Down")
     elseif game_context.menu.item_selected_item < item_index then
       pressAndRelease(bot_context, keys, "Down")
-    else
+    elseif game_context.menu.item_selected_item > item_index then
+      pressAndRelease(bot_context, keys, "Up")
+    elseif game_context.menu.item_top_item + item_index == target_item_index then
       pressAndRelease(bot_context, keys, "Circle")
     end
   elseif game_context.menu.active_menu_page == 1 and game_context.menu.item_submenu == 2 then
-    -- use the tent
-    pressAndRelease(bot_context, keys, "Circle")
+    -- if we just used a different item, back out
+    if game_context.menu.item_selected_item ~= item_index then
+      pressAndRelease(bot_context, keys, "Cross")
+    else
+      -- use the item
+      pressAndRelease(bot_context, keys, "Circle")
+    end
   end
 end

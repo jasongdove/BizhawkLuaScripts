@@ -69,8 +69,14 @@ function ReviveCharacterState:run(game_context, bot_context, keys)
   elseif game_context.menu.active_menu_page == 2 and game_context.menu.magic_submenu == 0 then
     pressAndRelease(bot_context, keys, "Circle")
   elseif game_context.menu.active_menu_page == 2 and game_context.menu.magic_submenu == 2 then
-    -- life is the first item, just press circle
-    pressAndRelease(bot_context, keys, "Circle")
+    local life_spell_index = 3
+    if game_context.menu.magic_spell_y * 3 + game_context.menu.magic_spell_x < life_spell_index then
+      pressAndRelease(bot_context, keys, "Right")
+    elseif game_context.menu.magic_spell_y * 3 + game_context.menu.magic_spell_x > life_spell_index then
+      pressAndRelease(bot_context, keys, "Left")
+    else 
+      pressAndRelease(bot_context, keys, "Circle")
+    end
   elseif game_context.menu.active_menu_page == 2 and game_context.menu.magic_submenu == 1 then
     if game_context.menu.magic_selected_character_index < bot_context.party_member_to_revive then
       pressAndRelease(bot_context, keys, "Down")

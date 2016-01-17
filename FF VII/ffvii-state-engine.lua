@@ -55,7 +55,7 @@ end
 function StateEngine:run(game_context, bot_context, keys)
   local state_to_run = self:getStateToRun(game_context, bot_context, keys)
   if state_to_run ~= nil then
-    state_to_run:writeText(game_context, bot_context)
+    --state_to_run:writeText(game_context, bot_context)
     
     if not game_context.is_something_happening then
       state_to_run:run(game_context, bot_context, keys)

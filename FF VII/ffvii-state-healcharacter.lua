@@ -48,6 +48,8 @@ function HealCharacterState:run(game_context, bot_context, keys)
 
   if not game_context.menu.is_in_menu then
     pressAndRelease(bot_context, keys, "Triangle")
+  elseif game_context.menu.active_menu_page == 1 then
+    pressAndRelease(bot_context, keys, "Cross")  
   elseif game_context.menu.main_menu_index < 1 then
     pressAndRelease(bot_context, keys, "Down")
   elseif game_context.menu.main_menu_index > 1 then
@@ -65,8 +67,14 @@ function HealCharacterState:run(game_context, bot_context, keys)
   elseif game_context.menu.active_menu_page == 2 and game_context.menu.magic_submenu == 0 then
     pressAndRelease(bot_context, keys, "Circle")
   elseif game_context.menu.active_menu_page == 2 and game_context.menu.magic_submenu == 2 then
-    -- cure is the first item, just press circle
-    pressAndRelease(bot_context, keys, "Circle")
+    local cure_spell_index = 0
+    if game_context.menu.magic_spell_y * 3 + game_context.menu.magic_spell_x < cure_spell_index then
+      pressAndRelease(bot_context, keys, "Right")
+    elseif game_context.menu.magic_spell_y * 3 + game_context.menu.magic_spell_x > cure_spell_index then
+      pressAndRelease(bot_context, keys, "Left")
+    else 
+      pressAndRelease(bot_context, keys, "Circle")
+    end
   elseif game_context.menu.active_menu_page == 2 and game_context.menu.magic_submenu == 1 then
     if game_context.menu.magic_selected_character_index < bot_context.party_member_to_heal then
       pressAndRelease(bot_context, keys, "Down")

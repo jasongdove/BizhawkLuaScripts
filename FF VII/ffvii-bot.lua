@@ -14,6 +14,7 @@ dofile 'ffvii-state-save.lua'
 dofile 'ffvii-state-reload.lua'
 dofile 'ffvii-state-revivecharacter.lua'
 dofile 'ffvii-state-tent.lua'
+dofile 'ffvii-state-stats.lua'
 
 do
   local clear_keys = {}
@@ -37,9 +38,10 @@ do
     { 3, SaveGameState:new() },
     { 4, HealCharacterState:new() },
     { 5, TentState:new() },
-    { 6, ReloadGameState:new() },
-    { 7, ReviveCharacterState:new() },
-    { 8, AcceptBattleRewardsState:new() },
+    { 6, StatsState:new() },
+    { 7, ReloadGameState:new() },
+    { 8, ReviveCharacterState:new() },
+    { 9, AcceptBattleRewardsState:new() },
   })
   
   if config.USE_TURBO then
