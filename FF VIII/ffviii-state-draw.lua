@@ -16,7 +16,13 @@ function DrawState:needToRun(game_context, bot_context)
       for enemy_index = 0,2 do
         if game_context.battle.enemies[enemy_index].is_alive then
           for enemy_magic_index = 0,3 do
-            local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index]
+            local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index].id
+            
+            if game_context.battle.enemies[enemy_index].magic[enemy_magic_index].is_unknown then
+              character.can_draw = true
+              break
+            end
+            
             if magic_id > 0 then
               for character_magic_index = 0,31 do
                 if character.magic[character_magic_index].id == magic_id and character.magic[character_magic_index].quantity < 100 then
@@ -78,7 +84,13 @@ function DrawState:run(game_context, bot_context, keys)
   for enemy_index = 0,2 do
     if game_context.battle.enemies[enemy_index].is_alive then
       for enemy_magic_index = 0,3 do
-        local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index]
+        local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index].id
+        if game_context.battle.enemies[enemy_index].magic[enemy_magic_index].is_unknown then
+          enemy_to_draw = enemy_index
+          magic_to_draw = magic_id
+          break
+        end
+        
         if magic_id > 0 then
           for character_magic_index = 0,31 do
             if character.magic[character_magic_index].id == magic_id then
@@ -116,5 +128,6 @@ function DrawState:run(game_context, bot_context, keys)
   else  
     pressAndRelease(bot_context, keys, 'Cross')
     bot_context.characters[character_to_draw].queued = true
+    bot_context.has_bot_done_stuff = true
   end
 end

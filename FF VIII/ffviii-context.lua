@@ -13,7 +13,7 @@ function updateGameContext(game_context)
   for character_index = 0,2 do
     local character = {}
     
-    character.exists = readCharacterByte(character_index, 0x1A5) == 0x00
+    character.exists = readCharacterByte(character_index, 0x1A5) ~= 0xFF
     character.current_hp = readCharacterWord(character_index, 0x154)
     character.max_hp = readCharacterWord(character_index, 0x156)
     character.experience = mainmemory.read_u32_le(0x07873E + (character_index * 0x1D0) + 0x15A)
@@ -41,23 +41,19 @@ function updateGameContext(game_context)
     
     -- str, other stats start at 0x139
     
-    -- if character.exists or not character.exists then
+    -- if character.exists then
     --   console.writeline('character ' .. character_index)
     --   
     --   local draw_text = 'false'
+    --   local exists_text = 'false'
     --   if character.has_command_draw then draw_text = 'true' end
+    --   if character.exists then exists_text = 'true' end
     --   
     --   console.writeline('  cur hp: ' .. character.current_hp)
     --   console.writeline('  max hp: ' .. character.max_hp)
     --   console.writeline('     lvl: ' .. character.level)
     --   console.writeline('      xp: ' .. character.experience)
     --   console.writeline('    draw: ' .. draw_text)
-    --   
-    --   for magic_index = 0,31 do
-    --     if character.magic[magic_index].id ~= 0 then
-    --       console.writeline('     m' .. magic_index .. ': ' .. character.magic[magic_index].id .. " / " .. character.magic[magic_index].quantity)
-    --     end
-    --   end
     -- end
     
     --console.writeline(character_index .. ": " .. character.id .. ", " .. character.level .. ", " .. character.current_hp .. "/" .. character.max_hp .. ", " .. character.current_mp .. "/" .. character.max_mp)
@@ -67,7 +63,8 @@ function updateGameContext(game_context)
   end
   
   game_context.battle = {}
-  game_context.battle.is_in_battle = mainmemory.read_u16_le(0x0ECB90) == 0x0040 and mainmemory.read_u16_le(0x0ECB92) == 0x0139 and mainmemory.read_u16_le(0x0ECB94) == 0xFF00 
+  game_context.battle.is_in_battle = mainmemory.read_u16_le(0x0ECB90) == 0x0040 and mainmemory.read_u16_le(0x0ECB92) == 0x0139 and mainmemory.read_u16_le(0x0ECB94) == 0xFF00
+  game_context.battle.is_accepting_rewards = mainmemory.read_u16_le(0x0ECB90) == 0x0000 and mainmemory.read_u16_le(0x0ECB92) == 0x0000 and (mainmemory.read_u16_le(0x0ECB94) == 0xF070 or mainmemory.read_u16_le(0x0ECB94) == 0x0000)  
   
   if game_context.battle.is_in_battle then
     for character_index = 0,2 do
@@ -89,8 +86,9 @@ function updateGameContext(game_context)
       
       enemy.magic = {}
       for magic_index = 0,3 do
-        local magic_id = mainmemory.read_u8(0x0EEA88 + (enemy_index * 0x47) + (magic_index * 0x04))
-        enemy.magic[magic_index] = magic_id
+        enemy.magic[magic_index] = {}
+        enemy.magic[magic_index].id = mainmemory.read_u8(0x0EEA88 + (enemy_index * 0x47) + (magic_index * 0x04))
+        enemy.magic[magic_index].is_unknown = mainmemory.read_u8(0x0EEA88 + (enemy_index * 0x47) + (magic_index * 0x04) + 0x01) == 0x08
       end
       
       game_context.battle.enemies[enemy_index] = enemy
@@ -113,17 +111,15 @@ function updateBotContext(config, game_context, bot_context)
       bot_context.characters[character_index].queued_frames = bot_context.characters[character_index].queued_frames or 0
       
       if bot_context.characters[character_index].queued then
-        bot_context.characters[character_index].queued_frames = (bot_context.characters[character_index].queued_frames or 0) + 1
+        bot_context.characters[character_index].queued_frames = bot_context.characters[character_index].queued_frames + 1
         
         if not game_context.characters[character_index].can_act then
           bot_context.characters[character_index].queued = false
           bot_context.characters[character_index].queued_frames = 0
+        elseif bot_context.characters[character_index].queued_frames > 20 then
+          bot_context.characters[character_index].can_act = false
         end 
       end
-      
-      if bot_context.characters[character_index].queued_frames > 10 then
-        bot_context.characters[character_index].can_act = false
-      end 
     end
   end
   

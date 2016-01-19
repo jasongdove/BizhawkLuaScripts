@@ -7,11 +7,12 @@ dofile 'ffviii-context.lua'
 dofile 'ffviii-state-engine.lua'
 dofile 'ffviii-state-idle.lua'
 dofile 'ffviii-state-draw.lua'
+dofile 'ffviii-state-runaway.lua'
+dofile 'ffviii-state-acceptbattlerewards.lua'
+dofile 'ffviii-state-save.lua'
 -- dofile 'ffvii-state-findbattle.lua'
 -- dofile 'ffvii-state-winbattle.lua'
--- dofile 'ffvii-state-acceptbattlerewards.lua'
 -- dofile 'ffvii-state-healcharacter.lua'
--- dofile 'ffvii-state-save.lua'
 -- dofile 'ffvii-state-reload.lua'
 -- dofile 'ffvii-state-revivecharacter.lua'
 -- dofile 'ffvii-state-tent.lua'
@@ -35,22 +36,23 @@ do
   local state_engine = StateEngine:new({
     { 0, IdleState:new() },
     { 1, DrawState:new() },
+    { 2, RunAwayState:new() },
     --{ 1, FindBattleState:new() },
     --{ 2, WinBattleState:new() },
-    --{ 3, SaveGameState:new() },
+    { 3, SaveGameState:new() },
     --{ 4, HealCharacterState:new() },
     --{ 5, TentState:new() },
     --{ 6, StatsState:new() },
     --{ 7, ReloadGameState:new() },
     --{ 8, ReviveCharacterState:new() },
-    --{ 9, AcceptBattleRewardsState:new() },
+    { 9, AcceptBattleRewardsState:new() },
   })
   
-  --if config.USE_TURBO then
-    --client.speedmode(1600)
-    --client.SetSoundOn(false)
-    --emu.minimizeframeskip(false)
-  --end
+  if config.USE_TURBO then
+    client.speedmode(1600)
+    client.SetSoundOn(false)
+    emu.minimizeframeskip(false)
+  end
   
   local should_continue = true
   
@@ -58,9 +60,9 @@ do
     local pressed_keys = joypad.get(1)
     if pressed_keys.Square then
       should_continue = false
-      --client.speedmode(100)
-      --client.SetSoundOn(true)
-      --emu.minimizeframeskip(true)
+      client.speedmode(100)
+      client.SetSoundOn(true)
+      emu.minimizeframeskip(true)
     end
     
     local keys = {}
