@@ -23,13 +23,27 @@ function DrawState:needToRun(game_context, bot_context)
               break
             end
             
+            local has_magic = false
             if magic_id > 0 then
               for character_magic_index = 0,31 do
-                if character.magic[character_magic_index].id == magic_id and character.magic[character_magic_index].quantity < 100 then
-                  character.can_draw = true
-                  break
+                if character.magic[character_magic_index].id == magic_id then
+                  has_magic = true
+                  if character.magic[character_magic_index].quantity < 100 then
+                    character.can_draw = true
+                    break
+                  end
                 end
               end
+
+              -- if we didn't find the magic, check if we have room to draw a new magic
+              if not has_magic and not character.can_draw then
+                for character_magic_index = 0,31 do
+                  if character.magic[character_magic_index].id == 0x00 then
+                    character.can_draw = true
+                    break
+                  end
+                end
+              end  
               
               if character.can_draw then break end
             end
@@ -92,14 +106,27 @@ function DrawState:run(game_context, bot_context, keys)
         end
         
         if magic_id > 0 then
+          local has_magic = false
           for character_magic_index = 0,31 do
             if character.magic[character_magic_index].id == magic_id then
+              has_magic = true
               if character.magic[character_magic_index].quantity < 100 then
                 enemy_to_draw = enemy_index
                 magic_to_draw = magic_id
                 break
               end
             end
+          end
+          
+          -- draw a new magic as long as we have room
+          if not has_magic then
+            for character_magic_index = 0,31 do
+              if character.magic[character_magic_index].id == 0x00 then
+                enemy_to_draw = enemy_index
+                magic_to_draw = magic_id
+                break
+              end
+            end            
           end
 
           if enemy_to_draw ~= nil then break end
