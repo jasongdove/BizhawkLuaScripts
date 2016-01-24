@@ -1,3 +1,11 @@
+local function bitnumber(p)
+  return 2 ^ (p - 1)  -- 1-based indexing
+end
+
+local function hasbit(x, p)
+  return x % (p + p) >= p
+end
+
 local readCharacterByte = function(character_index, offset)
   return mainmemory.read_u8(0x07873E + (character_index * 0x1D0) + offset)
 end
@@ -66,9 +74,32 @@ function updateGameContext(game_context)
     game_context.characters[character_index] = character
   end
   
+  game_context.menu = {}
+  game_context.menu.is_in_menu = mainmemory.read_u16_le(0x1FA5D0) == 0x2458 and mainmemory.read_u16_le(0x1FA5D2) == 0x801F
+  
+  if game_context.menu.is_in_menu then
+    game_context.menu.main_menu_index = mainmemory.read_u8(0x1FA608)
+    game_context.menu.active_menu = mainmemory.read_u8(0x1FA60A)
+    
+    if game_context.menu.active_menu == 0x04 then
+      game_context.menu.gf = {}
+      game_context.menu.gf.id = mainmemory.read_u8(0x1FA675)
+
+      game_context.menu.gf.active_menu = mainmemory.read_u8(0x1FA670)
+      game_context.menu.gf.is_selection_menu_active = game_context.menu.gf.active_menu == 0x00
+      game_context.menu.gf.is_status_menu_active = game_context.menu.gf.active_menu == 0x01
+      game_context.menu.gf.is_learn_menu_active = game_context.menu.gf.active_menu == 0x02
+     
+      game_context.menu.gf.learn_menu_page = mainmemory.read_u8(0x1FA676)
+      game_context.menu.gf.learn_menu_index_page_1 = mainmemory.read_u8(0x1FA679)
+      game_context.menu.gf.learn_menu_index_page_2 = mainmemory.read_u8(0x1FA67A)
+      game_context.menu.gf.learn_menu_ability = mainmemory.read_u16_le(0x1FA660)
+    end
+  end
+  
   game_context.battle = {}
   game_context.battle.is_in_battle = mainmemory.read_u16_le(0x0ECB90) == 0x0040 and mainmemory.read_u16_le(0x0ECB92) == 0x0139 and mainmemory.read_u16_le(0x0ECB94) == 0xFF00
-  game_context.battle.is_accepting_rewards = mainmemory.read_u16_le(0x0ECB90) == 0x0000 and mainmemory.read_u16_le(0x0ECB92) == 0x0000 and (mainmemory.read_u16_le(0x0ECB94) == 0xF070 or mainmemory.read_u16_le(0x0ECB94) == 0x0000)  
+  game_context.battle.is_accepting_rewards = mainmemory.read_u16_le(0x0ECB90) == 0x0000 and mainmemory.read_u16_le(0x0ECB92) == 0x0000 and (mainmemory.read_u16_le(0x0ECB94) == 0xF070 or mainmemory.read_u16_le(0x0ECB94) == 0x0000)
   
   if game_context.battle.is_in_battle then
     for character_index = 0,2 do
@@ -99,6 +130,46 @@ function updateGameContext(game_context)
       end
       
       game_context.battle.enemies[enemy_index] = enemy
+    end
+  else
+    game_context.gfs = {}
+    
+    for gf_index = 0,15 do
+      local gf = {}
+      
+      gf.id = gf_index
+      gf.name = ''
+      for gf_name_index = 0,11 do
+        local char = mainmemory.read_u8(0x0773C8 + (gf_index * 0x44) + gf_name_index)
+        if char > 0 then
+          if char >= 0x45 and char <= 0x5E then
+            gf.name = gf.name .. string.char(char - 0x04)
+          elseif char >= 0x5F and char <= 0x78 then
+            gf.name = gf.name .. string.char(char + 0x02)
+          end
+        end
+      end
+      
+      gf.xp = mainmemory.read_u16_le(0x0773C8 + (gf_index * 0x44) + 0xC)
+      gf.is_active = mainmemory.read_u8(0x0773C8 + (gf_index * 0x44) + 0x11) == 0x01
+      
+      if gf.is_active then
+        --console.writeline(gf.name)
+        --console.writeline('      xp: ' .. gf.xp)
+        
+        gf.abilities = {}
+        for ability_flag_index = 0,12 do
+          local ability_flags = mainmemory.read_u8(0x0773C8 + (gf_index * 0x44) + 0x14 + ability_flag_index)
+          for f = 0,7 do
+            local ability_id = ability_flag_index * 8 + f
+            gf.abilities[ability_id] = { completed = hasbit(ability_flags, bitnumber(f + 1)) }
+          end
+        end
+        
+        gf.active_ability = mainmemory.read_u8(0x0773C8 + (gf_index * 0x44) + 0x40)
+      end
+      
+      game_context.gfs[gf_index] = gf
     end
   end
   

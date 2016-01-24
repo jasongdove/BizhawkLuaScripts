@@ -11,6 +11,8 @@ dofile 'ffviii-state-runaway.lua'
 dofile 'ffviii-state-acceptbattlerewards.lua'
 dofile 'ffviii-state-save.lua'
 dofile 'ffviii-state-healcharacter.lua'
+dofile 'ffviii-state-gfability.lua'
+dofile 'ffviii-state-exitmenu.lua'
 -- dofile 'ffvii-state-findbattle.lua'
 -- dofile 'ffvii-state-winbattle.lua'
 -- dofile 'ffvii-state-reload.lua'
@@ -35,12 +37,14 @@ do
   
   local state_engine = StateEngine:new({
     { 0, IdleState:new() },
-    { 1, DrawState:new() },
-    { 2, RunAwayState:new() },
+    { 1, ExitMenuState:new() },
+    { 2, GfAbilityState:new() },
+    { 3, DrawState:new() },
+    { 4, RunAwayState:new() },
     --{ 1, FindBattleState:new() },
     --{ 2, WinBattleState:new() },
-    { 3, SaveGameState:new() },
-    { 4, HealCharacterState:new() },
+    { 5, SaveGameState:new() },
+    { 6, HealCharacterState:new() },
     --{ 5, TentState:new() },
     --{ 6, StatsState:new() },
     --{ 7, ReloadGameState:new() },

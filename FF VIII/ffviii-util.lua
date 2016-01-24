@@ -1,3 +1,5 @@
+local source = nil
+
 -- sorted pairs
 function spairs(t, order)
   -- collect the keys
@@ -23,7 +25,11 @@ function spairs(t, order)
 end
 
 function pressAndRelease(bot_context, keys, key)
-  if bot_context.press_and_release == nil then
+  local info = debug.getinfo(2)
+  local traceback = info.source .. info.name .. info.currentline
+
+  if bot_context.press_and_release == nil or (source ~= traceback) then
+    source = traceback
     bot_context.press_and_release = {}
     bot_context.press_and_release.press_frame = emu.framecount()
     bot_context.press_and_release.release_frame = emu.framecount() + 4

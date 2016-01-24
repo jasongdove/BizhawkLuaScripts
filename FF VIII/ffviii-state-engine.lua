@@ -1,3 +1,5 @@
+local last_state_to_run = nil
+
 -- base state
 State = {}
 
@@ -19,7 +21,10 @@ end
 function State:writeText(game_context, bot_context)
 end
 
-function State:run(game_context, bot_context)
+function State:enter(game_context, bot_context, keys)
+end
+
+function State:run(game_context, bot_context, keys)
 end
 
 -- state engine
@@ -55,9 +60,14 @@ end
 function StateEngine:run(game_context, bot_context, keys)
   local state_to_run = self:getStateToRun(game_context, bot_context, keys)
   if state_to_run ~= nil then
-    --state_to_run:writeText(game_context, bot_context)
+    state_to_run:writeText(game_context, bot_context)
     
     if not game_context.is_something_happening then
+      if last_state_to_run ~= state_to_run then
+        state_to_run:enter(game_context, bot_context, keys)
+        last_state_to_run = state_to_run
+      end
+      
       state_to_run:run(game_context, bot_context, keys)
     end
   end
