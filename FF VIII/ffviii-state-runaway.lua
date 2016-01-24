@@ -28,10 +28,24 @@ function RunAwayState:needToRun(game_context, bot_context)
             end
             
             if magic_id > 0 then
+              local has_magic = false
               for character_magic_index = 0,31 do
-                if character.magic[character_magic_index].id == magic_id and character.magic[character_magic_index].quantity < 100 then
-                  return false
+                if character.magic[character_magic_index].id == magic_id then
+                  has_magic = true
+                  
+                  if character.magic[character_magic_index].quantity < 100 then
+                    return false
+                  end
                 end
+              end
+              
+              -- draw a new magic as long as we have room
+              if not has_magic then
+                for character_magic_index = 0,31 do
+                  if character.magic[character_magic_index].id == 0x00 then
+                    return false
+                  end
+                end            
               end
             end
           end

@@ -14,19 +14,22 @@ function updateGameContext(game_context)
     local character = {}
     
     character.exists = readCharacterByte(character_index, 0x1A5) ~= 0xFF
+    character.id = readCharacterByte(character_index, 0x1A5)
     character.current_hp = readCharacterWord(character_index, 0x154)
     character.max_hp = readCharacterWord(character_index, 0x156)
     character.experience = mainmemory.read_u32_le(0x07873E + (character_index * 0x1D0) + 0x15A)
     character.level = readCharacterByte(character_index, 0x19A)
     
     character.magic = {}
-    for magic_index = 0,31 do
-      local magic = {}
-      
-      magic.id = readCharacterByte(character_index, 0x64 + (magic_index * 0x05) + 0x00)
-      magic.quantity = readCharacterByte(character_index, 0x64 + (magic_index * 0x05) + 0x01)
-      
-      character.magic[magic_index] = magic
+    if character.exists then
+      for magic_index = 0,31 do
+        local magic = {}
+        
+        magic.id = mainmemory.read_u8(0x077818 + (character.id * 0x98) + (magic_index * 0x02) + 0x00)
+        magic.quantity = mainmemory.read_u8(0x077818 + (character.id * 0x98) + (magic_index * 0x02) + 0x01)
+        
+        character.magic[magic_index] = magic
+      end
     end
     
     character.commands = {}
@@ -41,20 +44,21 @@ function updateGameContext(game_context)
     
     -- str, other stats start at 0x139
     
-    -- if character.exists then
-    --   console.writeline('character ' .. character_index)
-    --   
-    --   local draw_text = 'false'
-    --   local exists_text = 'false'
-    --   if character.has_command_draw then draw_text = 'true' end
-    --   if character.exists then exists_text = 'true' end
-    --   
-    --   console.writeline('  cur hp: ' .. character.current_hp)
-    --   console.writeline('  max hp: ' .. character.max_hp)
-    --   console.writeline('     lvl: ' .. character.level)
-    --   console.writeline('      xp: ' .. character.experience)
-    --   console.writeline('    draw: ' .. draw_text)
-    -- end
+--     if character.exists then
+--       console.writeline('character ' .. character_index)
+--       
+--       local draw_text = 'false'
+--       local exists_text = 'false'
+--       if character.has_command_draw then draw_text = 'true' end
+--       if character.exists then exists_text = 'true' end
+-- 
+--       console.writeline('      id: ' .. character.id)      
+--       console.writeline('  cur hp: ' .. character.current_hp)
+--       console.writeline('  max hp: ' .. character.max_hp)
+--       console.writeline('     lvl: ' .. character.level)
+--       console.writeline('      xp: ' .. character.experience)
+--       console.writeline('    draw: ' .. draw_text)
+--     end
     
     --console.writeline(character_index .. ": " .. character.id .. ", " .. character.level .. ", " .. character.current_hp .. "/" .. character.max_hp .. ", " .. character.current_mp .. "/" .. character.max_mp)
     
@@ -74,8 +78,11 @@ function updateGameContext(game_context)
     game_context.battle.active_character = mainmemory.read_u8(0x10331C)
     game_context.battle.main_menu_index = mainmemory.read_u8(0x10331B)
     game_context.battle.cursor_location = mainmemory.read_u8(0x1032A0)
-    game_context.battle.target_enemy = (mainmemory.read_u8(0x103254) % 0x08) / 0x02
+    game_context.battle.is_main_menu_active = mainmemory.read_u8(0x103312)
+    game_context.battle.target_enemy = math.log(mainmemory.read_u8(0x103254) / 0x08, 0x02)
+    game_context.battle.target_character = mainmemory.read_u8(0x103254) % 0x08
     game_context.battle.draw_magic_id = mainmemory.read_u8(0x1032AC)
+    game_context.battle.draw_action = mainmemory.read_u8(0x1032A9)
   
     game_context.battle.enemies = {}
     

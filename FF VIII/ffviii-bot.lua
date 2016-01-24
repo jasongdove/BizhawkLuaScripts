@@ -10,9 +10,9 @@ dofile 'ffviii-state-draw.lua'
 dofile 'ffviii-state-runaway.lua'
 dofile 'ffviii-state-acceptbattlerewards.lua'
 dofile 'ffviii-state-save.lua'
+dofile 'ffviii-state-healcharacter.lua'
 -- dofile 'ffvii-state-findbattle.lua'
 -- dofile 'ffvii-state-winbattle.lua'
--- dofile 'ffvii-state-healcharacter.lua'
 -- dofile 'ffvii-state-reload.lua'
 -- dofile 'ffvii-state-revivecharacter.lua'
 -- dofile 'ffvii-state-tent.lua'
@@ -40,7 +40,7 @@ do
     --{ 1, FindBattleState:new() },
     --{ 2, WinBattleState:new() },
     { 3, SaveGameState:new() },
-    --{ 4, HealCharacterState:new() },
+    { 4, HealCharacterState:new() },
     --{ 5, TentState:new() },
     --{ 6, StatsState:new() },
     --{ 7, ReloadGameState:new() },

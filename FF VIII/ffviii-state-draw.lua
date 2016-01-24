@@ -115,6 +115,7 @@ function DrawState:run(game_context, bot_context, keys)
                 magic_to_draw = magic_id
                 break
               end
+              break
             end
           end
           
@@ -140,19 +141,31 @@ function DrawState:run(game_context, bot_context, keys)
   -- couldn't find anything to draw, so pass to the next character
   if enemy_to_draw == nil then
     pressAndRelease(bot_context, keys, 'Circle')
+  
+  -- select 'draw'
   elseif game_context.battle.main_menu_index < 1 then
     pressAndRelease(bot_context, keys, 'Down')
   elseif game_context.battle.main_menu_index > 1 then
     pressAndRelease(bot_context, keys, 'Up')
-  elseif game_context.battle.cursor_location == 0x00 or game_context.battle.cursor_location == 0x05 or game_context.battle.cursor_location == 0x07 then
+  elseif game_context.battle.is_main_menu_active and not (game_context.battle.cursor_location == 0x0E or game_context.battle.cursor_location == 0x17) then
     pressAndRelease(bot_context, keys, 'Cross')
+    
+  -- select enemy
   elseif game_context.battle.target_enemy ~= enemy_to_draw then
     pressAndRelease(bot_context, keys, 'Right')
-  elseif game_context.battle.cursor_location ~= 0x0E then
+  elseif game_context.battle.target_enemy == enemy_to_draw and game_context.battle.cursor_location == 0x03 then
     pressAndRelease(bot_context, keys, 'Cross')
+  
+  -- select magic to draw
   elseif game_context.battle.draw_magic_id ~= magic_to_draw then
     pressAndRelease(bot_context, keys, 'Down')
-  else  
+  elseif game_context.battle.draw_magic_id == magic_to_draw and game_context.battle.cursor_location == 0x0E then
+    pressAndRelease(bot_context, keys, 'Cross')
+  
+  -- select 'stock'
+  elseif game_context.battle.draw_action ~= 0x00 and game_context.battle.cursor_location == 0x17 then
+    pressAndRelease(bot_context, keys, 'Down')
+  else
     pressAndRelease(bot_context, keys, 'Cross')
     bot_context.characters[character_to_draw].queued = true
     bot_context.has_bot_done_stuff = true
