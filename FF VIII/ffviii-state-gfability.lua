@@ -1,27 +1,166 @@
+local _HP_J = 0x01
+local _STR_J = 0x02
+local _VIT_J = 0x03
+local _MAG_J = 0x04
+local _SPR_J = 0x05
+local _ELEM_ATK_J = 0x0A
+local _ST_ATK_J = 0x0B
+local _ELEM_DEF_J = 0x0C
+local _ST_DEF_J = 0x0D
+local _ELEM_DEFx2 = 0x0E
+local _ST_DEF_Jx2 = 0x10
+local _MAGIC = 0x14
+local _GF = 0x15
+local _DRAW = 0x16
+local _ITEM = 0x17
+local _CARD = 0x19
+local _DOOM = 0x1A
+local _MAD_RUSH = 0x1B
+local _STR_PLUS_20 = 0x2A
+local _STR_PLUS_40 = 0x2B
+local _VIT_PLUS_20 = 0x2D
+local _VIT_PLUS_40 = 0x2E
+local _MAG_PLUS_20 = 0x30
+local _MAG_PLUS_40 = 0x31
+local _SPR_PLUS_20 = 0x33
+local _SPR_PLUS_40 = 0x34
+local _STR_BONUS = 0x42
+local _MOVE_FIND = 0x4F
+local _SUM_MAG_PLUS_10 = 0x53
+local _SUM_MAG_PLUS_20 = 0x54
+local _SUM_MAG_PLUS_30 = 0x55
+local _GF_HP_PLUS_10 = 0x57
+local _GF_HP_PLUS_20 = 0x58
+local _GF_HP_PLUS_30 = 0x59
+local _BOOST = 0x5B
+local _T_MAG_RF = 0x61
+local _I_MAG_RF = 0x62
+local _F_MAG_RF = 0x63
+local _L_MAG_RF = 0x64
+local _ST_MED_RF = 0x6A
+local _TOOL_RF = 0x6C
+local _AMMO_RF = 0x6B
+local _MID_MAG_RF = 0x70
+local _CARD_MOD = 0x73
+
 local gf_abilities = {}
-gf_abilities['Quezacotl'] = { [0] = 0x19 }
-gf_abilities['Shiva'] = { [0] = 0x02, [1] = 0x5B }
-gf_abilities['Ifrit'] = { [0] = 0x5B }
+gf_abilities['Quezacotl'] =
+{
+  [0] = _MAGIC,
+  [1] = _GF,
+  [2] = _DRAW,
+  [3] = _ITEM,
+  [4] = _CARD,
+  [5] = _CARD_MOD,
+  [6] = _T_MAG_RF,
+  [7] = _BOOST,
+  [8] = _MID_MAG_RF,
+  [9] = _HP_J,
+  [10] = _VIT_J,
+  [11] = _MAG_PLUS_20,
+  [12] = _MAG_PLUS_40,
+  [13] = _ELEM_ATK_J,
+  [14] = _ELEM_DEF_J,
+  [15] = _SUM_MAG_PLUS_10,
+  [16] = _SUM_MAG_PLUS_20,
+  [17] = _GF_HP_PLUS_10,
+  [18] = _GF_HP_PLUS_20,
+  [19] = _ELEM_DEFx2,
+  [20] = _SUM_MAG_PLUS_30,
+  [21] = _MAG_J,
+}
+
+gf_abilities['Shiva'] =
+{
+  [0] = _MAGIC,
+  [1] = _GF,
+  [2] = _DRAW,
+  [3] = _ITEM,
+  [4] = _STR_J,
+  [5] = _BOOST,
+  [6] = _VIT_J,
+  [7] = _I_MAG_RF,
+  [8] = _ELEM_ATK_J,
+  [9] = _DOOM,
+  [10] = _VIT_PLUS_20,
+  [11] = _VIT_PLUS_40,
+  [12] = _SPR_PLUS_20,
+  [13] = _SPR_PLUS_40,
+  [14] = _ELEM_DEF_J,
+  [15] = _SUM_MAG_PLUS_10,
+  [16] = _SUM_MAG_PLUS_20,
+  [17] = _GF_HP_PLUS_10,
+  [18] = _GF_HP_PLUS_20,
+  [19] = _ELEM_DEFx2,
+  [20] = _SUM_MAG_PLUS_30,
+  [21] = _SPR_J,
+}
+
+gf_abilities['Ifrit'] =
+{
+  [0] = _MAGIC,
+  [1] = _GF,
+  [2] = _DRAW,
+  [3] = _ITEM,
+  [4] = _BOOST,
+  [5] = _HP_J,
+  [6] = _STR_PLUS_20,
+  [7] = _F_MAG_RF,
+  [8] = _AMMO_RF,
+  [9] = _MAD_RUSH,
+  [10] = _ELEM_DEF_J,
+  [11] = _ELEM_DEFx2,
+  [12] = _STR_PLUS_40,
+  [13] = _STR_BONUS,
+  [14] = _SUM_MAG_PLUS_10,
+  [15] = _SUM_MAG_PLUS_20,
+  [16] = _GF_HP_PLUS_10,
+  [17] = _GF_HP_PLUS_20,
+  [18] = _SUM_MAG_PLUS_30,
+  [19] = _GF_HP_PLUS_30,
+  [20] = _STR_J,
+  [21] = _ELEM_ATK_J,
+}
 
 local gf_learn_map =
 {
-  [0x01] = 0x0AE1,
-  [0x02] = 0x0AF1,
-  [0x03] = 0x0B06,
-  [0x04] = 0x0B1D,
-  [0x05] = 0x0B2E,
-  [0x14] = 0x0CA2,
-  [0x15] = 0x0CAE,
-  [0x16] = 0x0CBB,
-  [0x17] = 0x0CCB,
-  [0x19] = 0x0CE7,
-  [0x30] = 0x0EC2,
-  [0x33] = 0x0F16,
-  [0x53] = 0x134B,
-  [0x57] = 0x13C5,
-  [0x5B] = 0x1422,
-  [0x61] = 0x14D9,
-  [0x62] = 0x1502,
+  [_HP_J] = 0x0AE1,
+  [_STR_J] = 0x0AF1,
+  [_VIT_J] = 0x0B06,
+  [_MAG_J] = 0x0B1D,
+  [_SPR_J] = 0x0B2E,
+  [_ELEM_ATK_J] = 0x0B94,
+  [_ELEM_DEF_J] = 0x0BC7,
+  [_ELEM_DEFx2] = 0x0BF8,
+  [_MAGIC] = 0x0CA2,
+  [_GF] = 0x0CAE,
+  [_DRAW] = 0x0CBB,
+  [_ITEM] = 0x0CCB,
+  [_CARD] = 0x0CE7,
+  [_DOOM] = 0x0CF6,
+  [_MAD_RUSH] = 0x0D0A,
+  [_STR_PLUS_20] = 0x0E41,
+  [_STR_PLUS_40] = 0x0E56,
+  [_VIT_PLUS_20] = 0x0E80,
+  [_VIT_PLUS_40] = 0x0E96,
+  [_MAG_PLUS_20] = 0x0EC2,
+  [_MAG_PLUS_40] = 0x0EDE,
+  [_SPR_PLUS_20] = 0x0F16,
+  [_SPR_PLUS_40] = 0x0F2B,
+  [_STR_BONUS] = 0x10D2,
+  [_SUM_MAG_PLUS_10] = 0x134B,
+  [_SUM_MAG_PLUS_20] = 0x136A,
+  [_SUM_MAG_PLUS_30] = 0x1389,
+  [_GF_HP_PLUS_10] = 0x13C5,
+  [_GF_HP_PLUS_20] = 0x13DD,
+  [_GF_HP_PLUS_30] = 0x13F5,
+  [_BOOST] = 0x1422,
+  [_T_MAG_RF] = 0x14D9,
+  [_I_MAG_RF] = 0x1502,
+  [_F_MAG_RF] = 0x1527,
+  [_AMMO_RF] = 0x1664,
+  [_MID_MAG_RF] = 0x1741,
+  [_CARD_MOD] = 0x17AC,
 }
 
 GfAbilityState = State:new()
@@ -59,6 +198,8 @@ function GfAbilityState:needToRun(game_context, bot_context, keys)
             bot_context.gf.ability_to_learn = ability 
             return true
           end
+        else
+          client.pause()
         end
       end
     end

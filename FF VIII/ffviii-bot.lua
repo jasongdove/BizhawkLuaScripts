@@ -13,12 +13,8 @@ dofile 'ffviii-state-save.lua'
 dofile 'ffviii-state-healcharacter.lua'
 dofile 'ffviii-state-gfability.lua'
 dofile 'ffviii-state-exitmenu.lua'
--- dofile 'ffvii-state-findbattle.lua'
--- dofile 'ffvii-state-winbattle.lua'
--- dofile 'ffvii-state-reload.lua'
--- dofile 'ffvii-state-revivecharacter.lua'
--- dofile 'ffvii-state-tent.lua'
--- dofile 'ffvii-state-stats.lua'
+dofile 'ffviii-state-seifergrind.lua'
+dofile 'ffviii-state-seiferfindbattle.lua'
 
 do
   local clear_keys = {}
@@ -37,18 +33,14 @@ do
   
   local state_engine = StateEngine:new({
     { 0, IdleState:new() },
-    { 1, ExitMenuState:new() },
-    { 2, GfAbilityState:new() },
-    { 3, DrawState:new() },
-    { 4, RunAwayState:new() },
-    --{ 1, FindBattleState:new() },
-    --{ 2, WinBattleState:new() },
-    { 5, SaveGameState:new() },
-    { 6, HealCharacterState:new() },
-    --{ 5, TentState:new() },
-    --{ 6, StatsState:new() },
-    --{ 7, ReloadGameState:new() },
-    --{ 8, ReviveCharacterState:new() },
+    { 1, SeiferFindBattleState:new() },
+    { 2, ExitMenuState:new() },
+    { 3, GfAbilityState:new() },
+    { 4, DrawState:new() },
+    { 5, RunAwayState:new() },
+    { 6, SeiferGrindState:new() },
+    { 7, SaveGameState:new() },
+    { 8, HealCharacterState:new() },
     { 9, AcceptBattleRewardsState:new() },
   })
   
@@ -59,24 +51,34 @@ do
   end
   
   local should_continue = true
+  local run_bot = false
   
   while should_continue do
     local pressed_keys = joypad.get(1)
-    if pressed_keys.Square then
-      should_continue = false
-      client.speedmode(100)
-      client.SetSoundOn(true)
-      emu.minimizeframeskip(true)
+    
+    if pressed_keys.L1 and pressed_keys.Square then
+      run_bot = false
+    elseif pressed_keys.R1 and pressed_keys.Square then
+      run_bot = true
     end
-    
-    local keys = {}
-    
-    updateGameContext(game_context)
-    updateBotContext(config, game_context, bot_context)
-    
-    state_engine:run(game_context, bot_context, keys)
-    
-    joypad.set(keys, 1)
+  
+    if run_bot then    
+      -- if pressed_keys.Square then
+      --   should_continue = false
+      --   client.speedmode(100)
+      --   client.SetSoundOn(true)
+      --   emu.minimizeframeskip(true)
+      -- end
+      
+      local keys = {}
+
+      updateGameContext(game_context)
+      updateBotContext(config, game_context, bot_context)
+      
+      state_engine:run(game_context, bot_context, keys)
+      
+      joypad.set(keys, 1)
+    end
   
     emu.frameadvance()
   end

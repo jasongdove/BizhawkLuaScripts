@@ -1,3 +1,7 @@
+local MAGIC_CURE = 0x15
+local MAGIC_CURA = 0x16
+local MAGIC_CURAGA = 0x17
+
 HealCharacterState = State:new()
 
 function HealCharacterState:needToRun(game_context, bot_context, keys)
@@ -23,7 +27,7 @@ function HealCharacterState:needToRun(game_context, bot_context, keys)
     if game_context.battle.enemies[enemy_index].is_alive then
       for enemy_magic_index = 0,3 do
         local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index].id
-        if magic_id == 0x15 then
+        if magic_id == MAGIC_CURAGA or magic_id == MAGIC_CURA or magic_id == MAGIC_CURE then
           enemy_has_cure = true
           break
         end
@@ -38,7 +42,7 @@ function HealCharacterState:needToRun(game_context, bot_context, keys)
   -- heal low hp characters
   for character_index = 0,2 do
     local character = game_context.characters[character_index]
-    if character.exists and character.current_hp <= 150 then
+    if character.exists and character.current_hp > 0 and (character.current_hp / character.max_hp < 0.5) then
       return true
     end
   end
@@ -81,7 +85,7 @@ function HealCharacterState:run(game_context, bot_context, keys)
     if game_context.battle.enemies[enemy_index].is_alive then
       for enemy_magic_index = 0,3 do
         local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index].id
-        if magic_id == 0x15 then
+        if magic_id == MAGIC_CURAGA or magic_id == MAGIC_CURA or magic_id == MAGIC_CURE then
           enemy_to_draw = enemy_index
           magic_to_draw = magic_id
           break
@@ -96,7 +100,7 @@ function HealCharacterState:run(game_context, bot_context, keys)
   local character_to_heal = nil
   for character_index = 0,2 do
     local c = game_context.characters[character_index]
-    if c.exists and c.current_hp <= 150 then
+    if c.exists and c.current_hp > 0 and (c.current_hp / c.max_hp < 0.5) then
       character_to_heal = character_index
       break
     end
@@ -104,42 +108,48 @@ function HealCharacterState:run(game_context, bot_context, keys)
   
   if character_to_heal == nil then return end
   
-    -- couldn't find anything to draw, so pass to the next character
+  -- couldn't find anything to draw, so pass to the next character
   if enemy_to_draw == nil then
     pressAndRelease(bot_context, keys, 'Circle')
-  
-  -- select 'draw'
-  elseif game_context.battle.main_menu_index < 1 then
-    pressAndRelease(bot_context, keys, 'Down')
-  elseif game_context.battle.main_menu_index > 1 then
-    pressAndRelease(bot_context, keys, 'Up')
-  elseif game_context.battle.is_main_menu_active and not (game_context.battle.cursor_location == 0x0E or game_context.battle.cursor_location == 0x17) then
-    pressAndRelease(bot_context, keys, 'Cross')
-    
-  -- select enemy
-  elseif game_context.battle.target_enemy ~= enemy_to_draw then
-    pressAndRelease(bot_context, keys, 'Right')
-  elseif game_context.battle.target_enemy == enemy_to_draw and game_context.battle.cursor_location == 0x03 then
-    pressAndRelease(bot_context, keys, 'Cross')
-  
-  -- select magic to draw
-  elseif game_context.battle.draw_magic_id ~= magic_to_draw then
-    pressAndRelease(bot_context, keys, 'Down')
-  elseif game_context.battle.draw_magic_id == magic_to_draw and game_context.battle.cursor_location == 0x0E then
-    pressAndRelease(bot_context, keys, 'Cross')
-  
-  -- select 'cast'
-  elseif game_context.battle.draw_action ~= 0x01 and game_context.battle.cursor_location == 0x17 then
-    pressAndRelease(bot_context, keys, 'Down')
-  elseif game_context.battle.draw_action == 0x01 and game_context.battle.cursor_location == 0x17 then
-    pressAndRelease(bot_context, keys, 'Cross')
-  
-  -- select the target
-  elseif game_context.battle.target_character ~= character_to_heal then
-    pressAndRelease(bot_context, keys, 'Right')
   else
-    pressAndRelease(bot_context, keys, 'Cross')
-    bot_context.characters[character_to_draw].queued = true
-    bot_context.has_bot_done_stuff = true
+    -- select 'draw'
+    if game_context.battle.is_main_menu_active then
+      if game_context.battle.main_menu_index < 1 then
+        pressAndRelease(bot_context, keys, 'Down')
+      elseif game_context.battle.main_menu_index > 1 then
+        pressAndRelease(bot_context, keys, 'Up')
+      else
+        pressAndRelease(bot_context, keys, 'Cross')
+      end
+    -- select enemy
+    elseif game_context.battle.cursor_location == 0x03 then
+      if game_context.battle.target_enemy ~= enemy_to_draw then
+        pressAndRelease(bot_context, keys, 'Right')
+      else
+        pressAndRelease(bot_context, keys, 'Cross')
+      end
+    -- select magic to draw
+    elseif game_context.battle.cursor_location == 0x0E then
+      if game_context.battle.draw_magic_id ~= magic_to_draw then
+        pressAndRelease(bot_context, keys, 'Down')
+      else
+        pressAndRelease(bot_context, keys, 'Cross')
+      end
+    -- select 'cast'
+    elseif game_context.battle.cursor_location == 0x17 then
+      if game_context.battle.draw_action ~= 0x01 then
+        pressAndRelease(bot_context, keys, 'Down')
+      else
+        pressAndRelease(bot_context, keys, 'Cross')
+      end
+    elseif game_context.battle.cursor_location == 0x1C then
+      if game_context.battle.target_character ~= character_to_heal then
+        pressAndRelease(bot_context, keys, 'Right')
+      else
+        pressAndRelease(bot_context, keys, 'Cross')
+        bot_context.characters[character_to_draw].queued = true
+        bot_context.has_bot_done_stuff = true
+      end
+    end
   end
 end

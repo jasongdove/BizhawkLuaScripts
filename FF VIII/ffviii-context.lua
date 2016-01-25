@@ -99,7 +99,7 @@ function updateGameContext(game_context)
   
   game_context.battle = {}
   game_context.battle.is_in_battle = mainmemory.read_u16_le(0x0ECB90) == 0x0040 and mainmemory.read_u16_le(0x0ECB92) == 0x0139 and mainmemory.read_u16_le(0x0ECB94) == 0xFF00
-  game_context.battle.is_accepting_rewards = mainmemory.read_u16_le(0x0ECB90) == 0x0000 and mainmemory.read_u16_le(0x0ECB92) == 0x0000 and (mainmemory.read_u16_le(0x0ECB94) == 0xF070 or mainmemory.read_u16_le(0x0ECB94) == 0x0000)
+  game_context.battle.is_accepting_rewards = mainmemory.read_u8(0x0771D4) == 0x02 -- mainmemory.read_u16_le(0x0ECB90) == 0x0000 and mainmemory.read_u16_le(0x0ECB92) == 0x0000 and (mainmemory.read_u16_le(0x0ECB94) == 0xF070 or mainmemory.read_u16_le(0x0ECB94) == 0x0000)
   
   if game_context.battle.is_in_battle then
     for character_index = 0,2 do
@@ -109,18 +109,42 @@ function updateGameContext(game_context)
     game_context.battle.active_character = mainmemory.read_u8(0x10331C)
     game_context.battle.main_menu_index = mainmemory.read_u8(0x10331B)
     game_context.battle.cursor_location = mainmemory.read_u8(0x1032A0)
-    game_context.battle.is_main_menu_active = mainmemory.read_u8(0x103312)
-    game_context.battle.target_enemy = math.log(mainmemory.read_u8(0x103254) / 0x08, 0x02)
-    game_context.battle.target_character = mainmemory.read_u8(0x103254) % 0x08
+    game_context.battle.is_main_menu_active = game_context.battle.cursor_location == 0x00
+      or game_context.battle.cursor_location == 0x07
+      or game_context.battle.cursor_location == 0x05
+      or game_context.battle.cursor_location == 0x22
+      or game_context.battle.cursor_location == 0x2A
+      or game_context.battle.cursor_location == 0x88
+    
+    local enemy_flag = mainmemory.read_u8(0x103254)
+    if enemy_flag == 8 then
+      game_context.battle.target_enemy = 0
+    elseif enemy_flag == 16 then
+      game_context.battle.target_enemy = 1
+    elseif enemy_flag == 32 then
+      game_context.battle.target_enemy = 2
+    end
+    
+    local character_flag = mainmemory.read_u8(0x103254)
+    if character_flag == 1 then
+      game_context.battle.target_character = 0
+    elseif character_flag == 2 then
+      game_context.battle.target_character = 1
+    elseif character_flag == 4 then
+      game_context.battle.target_character = 2
+    end
+    
     game_context.battle.draw_magic_id = mainmemory.read_u8(0x1032AC)
     game_context.battle.draw_action = mainmemory.read_u8(0x1032A9)
+    game_context.battle.is_limit_break = mainmemory.read_u8(0x103329) == 0x5A and mainmemory.read_u8(0x10332A) == 0x4A
   
     game_context.battle.enemies = {}
     
     for enemy_index = 0,2 do
       local enemy = {}
       
-      enemy.is_alive = mainmemory.read_u8(0x0ED3D0 + (enemy_index * 0xD0) + 0x74) ~= 0x00
+      enemy.current_hp = mainmemory.read_u16_le(0x0ED3D0 + (enemy_index * 0xD0) + 0x10)
+      enemy.is_alive = enemy.current_hp > 0 -- mainmemory.read_u8(0x0ED3D0 + (enemy_index * 0xD0) + 0x74) ~= 0x00
       
       enemy.magic = {}
       for magic_index = 0,3 do
@@ -158,7 +182,7 @@ function updateGameContext(game_context)
         --console.writeline('      xp: ' .. gf.xp)
         
         gf.abilities = {}
-        for ability_flag_index = 0,12 do
+        for ability_flag_index = 0,14 do
           local ability_flags = mainmemory.read_u8(0x0773C8 + (gf_index * 0x44) + 0x14 + ability_flag_index)
           for f = 0,7 do
             local ability_id = ability_flag_index * 8 + f
@@ -183,20 +207,71 @@ function updateBotContext(config, game_context, bot_context)
   for character_index = 0,2 do
     bot_context.characters = bot_context.characters or {}
     bot_context.characters[character_index] = bot_context.characters[character_index] or {}
-    bot_context.characters[character_index].can_act = true
+    bot_context_character = bot_context.characters[character_index]
+    bot_context_character.can_act = true
     
     if game_context.battle.is_in_battle then
-      bot_context.characters[character_index].queued_frames = bot_context.characters[character_index].queued_frames or 0
+      bot_context_character.queued_frames = bot_context_character.queued_frames or 0
       
-      if bot_context.characters[character_index].queued then
-        bot_context.characters[character_index].queued_frames = bot_context.characters[character_index].queued_frames + 1
+      if bot_context_character.queued then
+        bot_context_character.queued_frames = bot_context_character.queued_frames + 1
         
         if not game_context.characters[character_index].can_act then
-          bot_context.characters[character_index].queued = false
-          bot_context.characters[character_index].queued_frames = 0
-        elseif bot_context.characters[character_index].queued_frames > 20 then
-          bot_context.characters[character_index].can_act = false
+          bot_context_character.queued = false
+          bot_context_character.queued_frames = 0
+        elseif bot_context_character.queued_frames > 20 then
+          bot_context_character.can_act = false
         end 
+      end
+      
+      local character = game_context.characters[character_index]
+      bot_context_character.can_draw = false
+    
+      if character.exists and character.has_command_draw then
+        -- enemy must have magic that this player does not have capped
+        for enemy_index = 0,2 do
+          if game_context.battle.enemies[enemy_index].is_alive then
+            for enemy_magic_index = 0,3 do
+              local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index].id
+              
+              if game_context.battle.enemies[enemy_index].magic[enemy_magic_index].is_unknown then
+                bot_context_character.can_draw = true
+                break
+              end
+              
+              local has_magic = false
+              if magic_id > 0 then
+                for character_magic_index = 0,31 do
+                  if character.magic[character_magic_index] ~= nil then
+                    if character.magic[character_magic_index].id == magic_id then
+                      has_magic = true
+                      if character.magic[character_magic_index].quantity < 100 then
+                        bot_context_character.can_draw = true
+                        break
+                      end
+                    end
+                  end
+                end
+
+                -- if we didn't find the magic, check if we have room to draw a new magic
+                if not has_magic and not character.can_draw then
+                  for character_magic_index = 0,31 do
+                    if character.magic[character_magic_index] ~= nil then
+                      if character.magic[character_magic_index].id == 0x00 then
+                        bot_context_character.can_draw = true
+                        break
+                      end
+                    end
+                  end
+                end  
+                
+                if bot_context_character.can_draw then break end
+              end
+            end
+            
+            if bot_context_character.can_draw then break end
+          end
+        end
       end
     end
   end

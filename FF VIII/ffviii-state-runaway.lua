@@ -9,7 +9,7 @@ function RunAwayState:needToRun(game_context, bot_context)
   -- run away with low hp characters
   for character_index = 0,2 do
     local character = game_context.characters[character_index]
-    if character.exists and character.current_hp <= 150 then
+    if character.exists and character.current_hp > 0 and (character.current_hp / character.max_hp < 0.5) then
       return true
     end
   end

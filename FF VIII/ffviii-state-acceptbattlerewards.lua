@@ -1,7 +1,7 @@
 AcceptBattleRewardsState = State:new()
 
 function AcceptBattleRewardsState:needToRun(game_context, bot_context)
-  return game_context.battle.is_accepting_rewards
+  return game_context.battle.is_accepting_rewards and not game_context.battle.is_in_battle
 end
 
 function AcceptBattleRewardsState:writeText(game_context, bot_context)
