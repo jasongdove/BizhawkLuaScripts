@@ -10,11 +10,14 @@ dofile 'ffviii-state-draw.lua'
 dofile 'ffviii-state-runaway.lua'
 dofile 'ffviii-state-acceptbattlerewards.lua'
 dofile 'ffviii-state-save.lua'
+dofile 'ffviii-state-reload.lua'
 dofile 'ffviii-state-healcharacter.lua'
 dofile 'ffviii-state-gfability.lua'
 dofile 'ffviii-state-exitmenu.lua'
 dofile 'ffviii-state-seifergrind.lua'
 dofile 'ffviii-state-seiferfindbattle.lua'
+dofile 'ffviii-state-traincardgrind.lua'
+dofile 'ffviii-state-trainfindbattle.lua'
 
 do
   local clear_keys = {}
@@ -33,15 +36,23 @@ do
   
   local state_engine = StateEngine:new({
     { 0, IdleState:new() },
-    { 1, SeiferFindBattleState:new() },
+    
+    --{ 1, SeiferFindBattleState:new() },
+    { 1, TrainFindBattleState:new() },
+    
     { 2, ExitMenuState:new() },
     { 3, GfAbilityState:new() },
     { 4, DrawState:new() },
-    { 5, RunAwayState:new() },
-    { 6, SeiferGrindState:new() },
-    { 7, SaveGameState:new() },
-    { 8, HealCharacterState:new() },
-    { 9, AcceptBattleRewardsState:new() },
+    
+    --{ 6, SeiferGrindState:new() },
+    { 6, TrainCardGrindState: new() },
+
+    { 7, RunAwayState:new() },
+    { 8, SaveGameState:new() },
+    { 9, HealCharacterState:new() },
+    { 10, AcceptBattleRewardsState:new() },
+    
+    { 100, ReloadGameState:new() },
   })
   
   if config.USE_TURBO then

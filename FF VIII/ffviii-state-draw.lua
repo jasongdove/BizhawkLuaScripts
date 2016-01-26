@@ -46,7 +46,7 @@ function DrawState:run(game_context, bot_context, keys)
   local enemy_to_draw = nil
   local magic_to_draw = nil
   
-  for enemy_index = 0,2 do
+  for enemy_index = 0,3 do
     if game_context.battle.enemies[enemy_index].is_alive then
       for enemy_magic_index = 0,3 do
         local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index].id

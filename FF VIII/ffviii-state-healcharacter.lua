@@ -23,7 +23,7 @@ function HealCharacterState:needToRun(game_context, bot_context, keys)
   
   -- enemy must have "cure" magic
   local enemy_has_cure = false
-  for enemy_index = 0,2 do
+  for enemy_index = 0,3 do
     if game_context.battle.enemies[enemy_index].is_alive then
       for enemy_magic_index = 0,3 do
         local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index].id
@@ -81,7 +81,7 @@ function HealCharacterState:run(game_context, bot_context, keys)
   local enemy_to_draw = nil
   local magic_to_draw = nil
   
-  for enemy_index = 0,2 do
+  for enemy_index = 0,3 do
     if game_context.battle.enemies[enemy_index].is_alive then
       for enemy_magic_index = 0,3 do
         local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index].id
@@ -144,11 +144,20 @@ function HealCharacterState:run(game_context, bot_context, keys)
       end
     elseif game_context.battle.cursor_location == 0x1C then
       if game_context.battle.target_character ~= character_to_heal then
-        pressAndRelease(bot_context, keys, 'Right')
+        bot_context.heal_moves = bot_context.heal_moves or 0
+        
+        if bot_context.heal_moves < 50 then
+          pressAndRelease(bot_context, keys, 'Right')
+        else
+          pressAndRelease(bot_context, keys, 'Down')
+        end
+        
+        bot_context.heal_moves = bot_context.heal_moves + 1
       else
         pressAndRelease(bot_context, keys, 'Cross')
         bot_context.characters[character_to_draw].queued = true
         bot_context.has_bot_done_stuff = true
+        bot_context.heal_moves = nil
       end
     end
   end

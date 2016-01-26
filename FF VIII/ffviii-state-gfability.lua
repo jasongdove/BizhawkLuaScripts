@@ -3,12 +3,14 @@ local _STR_J = 0x02
 local _VIT_J = 0x03
 local _MAG_J = 0x04
 local _SPR_J = 0x05
+local _HIT_J = 0x08
 local _ELEM_ATK_J = 0x0A
 local _ST_ATK_J = 0x0B
 local _ELEM_DEF_J = 0x0C
 local _ST_DEF_J = 0x0D
 local _ELEM_DEFx2 = 0x0E
 local _ST_DEF_Jx2 = 0x10
+local _ABILITY_x3 = 0x12
 local _MAGIC = 0x14
 local _GF = 0x15
 local _DRAW = 0x16
@@ -16,6 +18,10 @@ local _ITEM = 0x17
 local _CARD = 0x19
 local _DOOM = 0x1A
 local _MAD_RUSH = 0x1B
+local _DARKSIDE = 0x1E
+local _HP_PLUS_20 = 0x27
+local _HP_PLUS_40 = 0x28
+local _HP_PLUS_80 = 0x29
 local _STR_PLUS_20 = 0x2A
 local _STR_PLUS_40 = 0x2B
 local _VIT_PLUS_20 = 0x2D
@@ -24,8 +30,12 @@ local _MAG_PLUS_20 = 0x30
 local _MAG_PLUS_40 = 0x31
 local _SPR_PLUS_20 = 0x33
 local _SPR_PLUS_40 = 0x34
+local _MUG = 0x3A
+local _MAG_BONUS = 0x44
 local _STR_BONUS = 0x42
 local _MOVE_FIND = 0x4F
+local _ENC_HALF = 0x50
+local _ENC_NONE = 0x51
 local _SUM_MAG_PLUS_10 = 0x53
 local _SUM_MAG_PLUS_20 = 0x54
 local _SUM_MAG_PLUS_30 = 0x55
@@ -37,6 +47,8 @@ local _T_MAG_RF = 0x61
 local _I_MAG_RF = 0x62
 local _F_MAG_RF = 0x63
 local _L_MAG_RF = 0x64
+local _TIME_MAG_RF = 0x65
+local _ST_MAG_RF = 0x66
 local _ST_MED_RF = 0x6A
 local _TOOL_RF = 0x6C
 local _AMMO_RF = 0x6B
@@ -122,6 +134,59 @@ gf_abilities['Ifrit'] =
   [21] = _ELEM_ATK_J,
 }
 
+gf_abilities['Siren'] =
+{
+  [0] = _MAGIC,
+  [1] = _GF,
+  [2] = _DRAW,
+  [3] = _ITEM,
+  [4] = _BOOST,
+  [5] = _MAG_J,
+  [6] = _ST_ATK_J,
+  [7] = _ST_DEF_J,
+  [8] = _ST_DEF_Jx2,
+  [9] = _SUM_MAG_PLUS_10,
+  [10] = _GF_HP_PLUS_10,
+  [11] = _L_MAG_RF,
+  [12] = _ST_MED_RF,
+  [13] = _TOOL_RF,
+  [14] = _MOVE_FIND,
+  [15] = _MAG_PLUS_20,
+  [16] = _MAG_PLUS_40,
+  [17] = _SUM_MAG_PLUS_20,
+  [18] = _GF_HP_PLUS_20,
+  [19] = _SUM_MAG_PLUS_30,
+  [20] = _MAG_BONUS,
+  --TODO: [21] = _TREATMENT,
+  [21] = _MAG_BONUS,
+}
+
+gf_abilities['Diablos'] =
+{
+  [0] = _MAGIC,
+  [1] = _GF,
+  [2] = _DRAW,
+  [3] = _ITEM,
+  [4] = _MAG_J,
+  [5] = _ABILITY_x3,
+  [6] = _ENC_HALF,
+  [7] = _HP_J,
+  [8] = _TIME_MAG_RF,
+  [9] = _ST_MAG_RF,
+  [10] = _ENC_NONE,
+  [11] = _MUG,
+  [12] = _HIT_J,
+  [13] = _DARKSIDE,
+  [14] = _HP_PLUS_20,
+  [15] = _HP_PLUS_40,
+  [16] = _MAG_PLUS_20,
+  [17] = _MAG_PLUS_40,
+  [18] = _GF_HP_PLUS_10,
+  [19] = _GF_HP_PLUS_20,
+  [20] = _GF_HP_PLUS_30,
+  [21] = _HP_PLUS_80,
+}
+
 local gf_learn_map =
 {
   [_HP_J] = 0x0AE1,
@@ -129,9 +194,11 @@ local gf_learn_map =
   [_VIT_J] = 0x0B06,
   [_MAG_J] = 0x0B1D,
   [_SPR_J] = 0x0B2E,
+  [_HIT_J] = 0x0B69,
   [_ELEM_ATK_J] = 0x0B94,
   [_ELEM_DEF_J] = 0x0BC7,
   [_ELEM_DEFx2] = 0x0BF8,
+  [_ABILITY_x3] = 0x0C67,
   [_MAGIC] = 0x0CA2,
   [_GF] = 0x0CAE,
   [_DRAW] = 0x0CBB,
@@ -139,6 +206,10 @@ local gf_learn_map =
   [_CARD] = 0x0CE7,
   [_DOOM] = 0x0CF6,
   [_MAD_RUSH] = 0x0D0A,
+  [_DARKSIDE] = 0x0D4D,
+  [_HP_PLUS_20] = 0x0E07,
+  [_HP_PLUS_40] = 0x0E1A,
+  [_HP_PLUS_80] = 0x0E2D,
   [_STR_PLUS_20] = 0x0E41,
   [_STR_PLUS_40] = 0x0E56,
   [_VIT_PLUS_20] = 0x0E80,
@@ -147,7 +218,12 @@ local gf_learn_map =
   [_MAG_PLUS_40] = 0x0EDE,
   [_SPR_PLUS_20] = 0x0F16,
   [_SPR_PLUS_40] = 0x0F2B,
+  [_MUG] = 0x0FAC,
   [_STR_BONUS] = 0x10D2,
+  [_MAG_BONUS] = 0x1115,
+  [_MOVE_FIND] = 0x12CA,
+  [_ENC_HALF] = 0x12ED,
+  [_ENC_NONE] = 0x130E,
   [_SUM_MAG_PLUS_10] = 0x134B,
   [_SUM_MAG_PLUS_20] = 0x136A,
   [_SUM_MAG_PLUS_30] = 0x1389,
@@ -158,7 +234,12 @@ local gf_learn_map =
   [_T_MAG_RF] = 0x14D9,
   [_I_MAG_RF] = 0x1502,
   [_F_MAG_RF] = 0x1527,
+  [_L_MAG_RF] = 0x1547,
+  [_TIME_MAG_RF] = 0x1574,
+  [_ST_MAG_RF] = 0x159B,
+  [_ST_MED_RF] = 0x1639,
   [_AMMO_RF] = 0x1664,
+  [_TOOL_RF] = 0x1686,
   [_MID_MAG_RF] = 0x1741,
   [_CARD_MOD] = 0x17AC,
 }
@@ -177,29 +258,31 @@ function GfAbilityState:needToRun(game_context, bot_context, keys)
     if gf ~= nil and gf.is_active then
       local abilities = gf_abilities[gf.name]
     
-      for ability_index = 0,21 do
-        local ability = abilities[ability_index]
-        if ability ~= nil then
-          if gf.active_ability == ability then
-            break
-          end
-          
-          -- check the GF has completed this ability, or is actively learning it
-          if not (gf.abilities[ability].completed or gf.active_ability == ability) then
-            bot_context.gf = bot_context.gf or {}
-            
-            -- reset menu if gf_to_change changes
-            if bot_context.gf.gf_to_change ~= nil and bot_context.gf.gf_to_change ~= gf_index then
-              bot_context.menu.need_to_reset = true
-              bot_context.menu.need_to_reset_learn = true
+      if abilities ~= nil then
+        for ability_index = 0,21 do
+          local ability = abilities[ability_index]
+          if ability ~= nil then
+            if gf.active_ability == ability then
+              break
             end
             
-            bot_context.gf.gf_to_change = gf_index
-            bot_context.gf.ability_to_learn = ability 
-            return true
+            -- check the GF has completed this ability, or is actively learning it
+            if not (gf.abilities[ability].completed or gf.active_ability == ability) then
+              bot_context.gf = bot_context.gf or {}
+              
+              -- reset menu if gf_to_change changes
+              if bot_context.gf.gf_to_change ~= nil and bot_context.gf.gf_to_change ~= gf_index then
+                bot_context.menu.need_to_reset = true
+                bot_context.menu.need_to_reset_learn = true
+              end
+              
+              bot_context.gf.gf_to_change = gf_index
+              bot_context.gf.ability_to_learn = ability 
+              return true
+            end
+          else
+            client.pause()
           end
-        else
-          client.pause()
         end
       end
     end

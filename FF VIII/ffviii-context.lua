@@ -7,26 +7,28 @@ local function hasbit(x, p)
 end
 
 local readCharacterByte = function(character_index, offset)
-  return mainmemory.read_u8(0x07873E + (character_index * 0x1D0) + offset)
+  return mainmemory.read_u8(0x078730 + (character_index * 0x1D0) + offset)
 end
 
 local readCharacterWord = function(character_index, offset)
-  return mainmemory.read_u16_le(0x07873E + (character_index * 0x1D0) + offset)
+  return mainmemory.read_u16_le(0x078730 + (character_index * 0x1D0) + offset)
 end
 
 function updateGameContext(game_context)
   game_context.characters = {}
+  game_context.characters_by_id = {}
   
   -- read character data  
   for character_index = 0,2 do
     local character = {}
     
-    character.exists = readCharacterByte(character_index, 0x1A5) ~= 0xFF
-    character.id = readCharacterByte(character_index, 0x1A5)
-    character.current_hp = readCharacterWord(character_index, 0x154)
-    character.max_hp = readCharacterWord(character_index, 0x156)
-    character.experience = mainmemory.read_u32_le(0x07873E + (character_index * 0x1D0) + 0x15A)
-    character.level = readCharacterByte(character_index, 0x19A)
+    character.exists = readCharacterByte(character_index, 0x1B3) ~= 0xFF
+    character.id = readCharacterByte(character_index, 0x1B3)
+    character.current_hp = readCharacterWord(character_index, 0x162)
+    character.max_hp = readCharacterWord(character_index, 0x164)
+    character.experience = mainmemory.read_u32_le(0x078730 + (character_index * 0x1D0) + 0x168)
+    character.level = readCharacterByte(character_index, 0x1A8)
+    character.gf_active = readCharacterByte(character_index, 0x0C) == 0x01
     
     character.magic = {}
     if character.exists then
@@ -44,7 +46,7 @@ function updateGameContext(game_context)
     for command_index = 0,3 do
       local command = {}
       
-      command.id = readCharacterByte(character_index, (command_index * 0x04) + 0x00)
+      command.id = readCharacterByte(character_index, (command_index * 0x04) + 0x0E)
       
       if command.id == 0x06 then character.has_command_draw = true end
       character.commands[command_index] = command
@@ -72,6 +74,7 @@ function updateGameContext(game_context)
     
     --character.status = readCharacterByte(character_index, 0x14)
     game_context.characters[character_index] = character
+    game_context.characters_by_id[character.id] = character
   end
   
   game_context.menu = {}
@@ -103,18 +106,21 @@ function updateGameContext(game_context)
   
   if game_context.battle.is_in_battle then
     for character_index = 0,2 do
-      game_context.characters[character_index].can_act = mainmemory.read_u16_le(0x0788A4 + (character_index * 0x1D0)) == 0x2EE0
+      game_context.characters[character_index].can_act = mainmemory.read_u16_le(0x0788A4 + (character_index * 0x1D0)) == 0x2EE0 and not game_context.characters[character_index].gf_active
     end
   
     game_context.battle.active_character = mainmemory.read_u8(0x10331C)
     game_context.battle.main_menu_index = mainmemory.read_u8(0x10331B)
     game_context.battle.cursor_location = mainmemory.read_u8(0x1032A0)
     game_context.battle.is_main_menu_active = game_context.battle.cursor_location == 0x00
-      or game_context.battle.cursor_location == 0x07
+      or game_context.battle.cursor_location == 0x04
       or game_context.battle.cursor_location == 0x05
+      or game_context.battle.cursor_location == 0x07
       or game_context.battle.cursor_location == 0x22
       or game_context.battle.cursor_location == 0x2A
       or game_context.battle.cursor_location == 0x88
+      or game_context.battle.cursor_location == 0xC8
+    game_context.battle.is_gf_menu_active = mainmemory.read_u8(0x103300) == 0xBC
     
     local enemy_flag = mainmemory.read_u8(0x103254)
     if enemy_flag == 8 then
@@ -140,11 +146,14 @@ function updateGameContext(game_context)
   
     game_context.battle.enemies = {}
     
-    for enemy_index = 0,2 do
+    for enemy_index = 0,3 do
       local enemy = {}
       
       enemy.current_hp = mainmemory.read_u16_le(0x0ED3D0 + (enemy_index * 0xD0) + 0x10)
+      enemy.max_hp = mainmemory.read_u16_le(0x0ED3D0 + (enemy_index * 0xD0) + 0x14)
+      enemy.exists = enemy.max_hp > 0
       enemy.is_alive = enemy.current_hp > 0 -- mainmemory.read_u8(0x0ED3D0 + (enemy_index * 0xD0) + 0x74) ~= 0x00
+      enemy.is_card = mainmemory.read_u8(0x0ED3D0 + (enemy_index * 0xD0) + 0x02) == 0x01
       
       enemy.magic = {}
       for magic_index = 0,3 do
@@ -206,6 +215,7 @@ function updateBotContext(config, game_context, bot_context)
   
   for character_index = 0,2 do
     bot_context.characters = bot_context.characters or {}
+    bot_context.characters_by_id = bot_context.characters_by_id or {}
     bot_context.characters[character_index] = bot_context.characters[character_index] or {}
     bot_context_character = bot_context.characters[character_index]
     bot_context_character.can_act = true
@@ -225,11 +235,12 @@ function updateBotContext(config, game_context, bot_context)
       end
       
       local character = game_context.characters[character_index]
+      bot_context.characters_by_id[character.id] = bot_context_character
       bot_context_character.can_draw = false
     
       if character.exists and character.has_command_draw then
         -- enemy must have magic that this player does not have capped
-        for enemy_index = 0,2 do
+        for enemy_index = 0,3 do
           if game_context.battle.enemies[enemy_index].is_alive then
             for enemy_magic_index = 0,3 do
               local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index].id
