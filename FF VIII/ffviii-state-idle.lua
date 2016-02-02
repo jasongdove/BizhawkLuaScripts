@@ -10,7 +10,7 @@ end
 
 function IdleState:run(game_context, bot_context, keys)
   if bot_context.has_bot_done_stuff then
-    client.pause()
+    --client.pause()
     bot_context.has_bot_done_stuff = false
   end
 end

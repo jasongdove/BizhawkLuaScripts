@@ -42,7 +42,7 @@ function HealCharacterState:needToRun(game_context, bot_context, keys)
   -- heal low hp characters
   for character_index = 0,2 do
     local character = game_context.characters[character_index]
-    if character.exists and character.current_hp > 0 and (character.current_hp / character.max_hp < 0.5) then
+    if character.exists and character.current_hp > 0 and character.current_hp < 200 then --(character.current_hp / character.max_hp < 0.5) then
       return true
     end
   end
@@ -100,7 +100,7 @@ function HealCharacterState:run(game_context, bot_context, keys)
   local character_to_heal = nil
   for character_index = 0,2 do
     local c = game_context.characters[character_index]
-    if c.exists and c.current_hp > 0 and (c.current_hp / c.max_hp < 0.5) then
+    if c.exists and c.current_hp > 0 and c.current_hp < 200 then --(c.current_hp / c.max_hp < 0.5) then
       character_to_heal = character_index
       break
     end

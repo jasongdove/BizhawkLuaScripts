@@ -48,7 +48,12 @@ function updateGameContext(game_context)
       
       command.id = readCharacterByte(character_index, (command_index * 0x04) + 0x0E)
       
-      if command.id == 0x06 then character.has_command_draw = true end
+      if command.id == 0x06 then character.has_command_draw = true
+      elseif command.id == 0x1D then character.has_command_card = true
+      elseif command.id == 0x22 then character.has_command_lvlup = true
+      --else console.writeline('c' .. character_index .. ' cmd ' .. command.id)
+      end 
+      
       character.commands[command_index] = command
     end
     
@@ -102,7 +107,9 @@ function updateGameContext(game_context)
   
   game_context.battle = {}
   game_context.battle.is_in_battle = mainmemory.read_u16_le(0x0ECB90) == 0x0040 and mainmemory.read_u16_le(0x0ECB92) == 0x0139 and mainmemory.read_u16_le(0x0ECB94) == 0xFF00
-  game_context.battle.is_accepting_rewards = mainmemory.read_u8(0x0771D4) == 0x02 -- mainmemory.read_u16_le(0x0ECB90) == 0x0000 and mainmemory.read_u16_le(0x0ECB92) == 0x0000 and (mainmemory.read_u16_le(0x0ECB94) == 0xF070 or mainmemory.read_u16_le(0x0ECB94) == 0x0000)
+  --game_context.battle.is_accepting_rewards = mainmemory.read_u8(0x0771D4) == 0x02 -- mainmemory.read_u16_le(0x0ECB90) == 0x0000 and mainmemory.read_u16_le(0x0ECB92) == 0x0000 and (mainmemory.read_u16_le(0x0ECB94) == 0xF070 or mainmemory.read_u16_le(0x0ECB94) == 0x0000)
+  --game_context.battle.is_accepting_rewards = game_context.battle.menu_id == 0xFF25
+  game_context.battle.is_accepting_rewards = mainmemory.read_u32_le(0x15BD28) == 0x4F7ADA47
   
   if game_context.battle.is_in_battle then
     for character_index = 0,2 do
@@ -112,15 +119,19 @@ function updateGameContext(game_context)
     game_context.battle.active_character = mainmemory.read_u8(0x10331C)
     game_context.battle.main_menu_index = mainmemory.read_u8(0x10331B)
     game_context.battle.cursor_location = mainmemory.read_u8(0x1032A0)
-    game_context.battle.is_main_menu_active = game_context.battle.cursor_location == 0x00
-      or game_context.battle.cursor_location == 0x04
-      or game_context.battle.cursor_location == 0x05
-      or game_context.battle.cursor_location == 0x07
-      or game_context.battle.cursor_location == 0x22
-      or game_context.battle.cursor_location == 0x2A
-      or game_context.battle.cursor_location == 0x88
-      or game_context.battle.cursor_location == 0xC8
+    game_context.battle.menu_id = mainmemory.read_u16_le(0x103338)
+    game_context.battle.is_main_menu_active = game_context.battle.menu_id == 0xDC0F -- attack
+      or game_context.battle.menu_id == 0xDC82 -- draw
+      or game_context.battle.menu_id == 0xDC2E -- magic
+      or game_context.battle.menu_id == 0xDEAA -- card
+      or game_context.battle.menu_id == 0xDC3B -- GF
+      or game_context.battle.menu_id == 0xDCEF -- mug
+      or game_context.battle.menu_id == 0xDD2B -- blue magic (quistis limit)
+      or game_context.battle.menu_id == 0xDF2B -- level up
+      -- TODO: item? other main menu entries?
     game_context.battle.is_gf_menu_active = mainmemory.read_u8(0x103300) == 0xBC
+    game_context.battle.blue_magic_index = mainmemory.read_u8(0x1032BC)
+    
     
     local enemy_flag = mainmemory.read_u8(0x103254)
     if enemy_flag == 8 then
@@ -154,6 +165,10 @@ function updateGameContext(game_context)
       enemy.exists = enemy.max_hp > 0
       enemy.is_alive = enemy.current_hp > 0 -- mainmemory.read_u8(0x0ED3D0 + (enemy_index * 0xD0) + 0x74) ~= 0x00
       enemy.is_card = mainmemory.read_u8(0x0ED3D0 + (enemy_index * 0xD0) + 0x02) == 0x01
+      enemy.level = mainmemory.read_u8(0x0ED3D0 + (enemy_index * 0xD0) + 0xB7)
+      
+      -- this flag only seems to apply to phased boss fights
+      enemy.is_inactive = false -- mainmemory.read_u8(0x0ED3D0 + (enemy_index * 0xD0) + 0x20) ~= 0x01
       
       enemy.magic = {}
       for magic_index = 0,3 do
@@ -241,17 +256,19 @@ function updateBotContext(config, game_context, bot_context)
       if character.exists and character.has_command_draw then
         -- enemy must have magic that this player does not have capped
         for enemy_index = 0,3 do
-          if game_context.battle.enemies[enemy_index].is_alive then
+          local enemy = game_context.battle.enemies[enemy_index]
+          if enemy.exists and enemy.is_alive and not enemy.is_inactive then
             for enemy_magic_index = 0,3 do
               local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index].id
               
-              if game_context.battle.enemies[enemy_index].magic[enemy_magic_index].is_unknown then
-                bot_context_character.can_draw = true
-                break
-              end
+              -- skip empty slots and spells we don't want (blizzard and scan)
+              if magic_id > 0 and magic_id ~= 0x01 and magic_id ~= 0x04 and magic_id ~= 0x07 and magic_id ~= 0x32 then
+                if game_context.battle.enemies[enemy_index].magic[enemy_magic_index].is_unknown then
+                  bot_context_character.can_draw = true
+                  break
+                end
               
-              local has_magic = false
-              if magic_id > 0 then
+                local has_magic = false
                 for character_magic_index = 0,31 do
                   if character.magic[character_magic_index] ~= nil then
                     if character.magic[character_magic_index].id == magic_id then
@@ -265,7 +282,7 @@ function updateBotContext(config, game_context, bot_context)
                 end
 
                 -- if we didn't find the magic, check if we have room to draw a new magic
-                if not has_magic and not character.can_draw then
+                if not has_magic and not bot_context_character.can_draw then
                   for character_magic_index = 0,31 do
                     if character.magic[character_magic_index] ~= nil then
                       if character.magic[character_magic_index].id == 0x00 then
@@ -274,9 +291,11 @@ function updateBotContext(config, game_context, bot_context)
                       end
                     end
                   end
-                end  
+                end
                 
-                if bot_context_character.can_draw then break end
+                if bot_context_character.can_draw then
+                  break
+                end
               end
             end
             

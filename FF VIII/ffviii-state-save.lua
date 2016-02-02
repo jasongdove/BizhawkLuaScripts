@@ -12,5 +12,5 @@ function SaveGameState:run(game_context, bot_context)
   savestate.saveslot(9)
   bot_context.is_save_required = false
   bot_context.reload_count = 0
-  --console.writeline('saved')
+  console.writeline('saved')
 end

@@ -1,3 +1,5 @@
+local third_character_id = 0x04 -- 0x04: rinoa, 0x01: zell
+
 TrainCardGrindState = State:new()
 
 function TrainCardGrindState:needToRun(game_context, bot_context)
@@ -16,7 +18,8 @@ function TrainCardGrindState:needToRun(game_context, bot_context)
     end
 
     -- party must contain squall, zell and selfie
-    if not (character.id == 0x00 or character.id == 0x01 or character.id == 0x05) then
+    if not (character.id == 0x00 or character.id == 0x05 or character.id == third_character_id) then
+      console.writeline(character.id)
       return false
     end
   end
@@ -42,7 +45,9 @@ function TrainCardGrindState:needToRun(game_context, bot_context)
 end
 
 function TrainCardGrindState:writeText(game_context, bot_context)
-  gui.text(0, 0, "Card grind")
+  local y_offset = 30
+
+  gui.text(0, y_offset + 0, "Card grind")
   
   for enemy_index = 0,3 do
     local enemy = game_context.battle.enemies[enemy_index]
@@ -54,7 +59,7 @@ function TrainCardGrindState:writeText(game_context, bot_context)
       elseif not enemy.is_alive then
         message = '' .. enemy_index .. ': DEAD'
       end
-      gui.text(0, 15 + (enemy_index * 15), message) 
+      gui.text(0, y_offset + 15 + (enemy_index * 15), message) 
     end
   end
 end
@@ -116,7 +121,7 @@ function TrainCardGrindState:run(game_context, bot_context, keys)
   end
   
   -- zell should attack if enemy hp > 50
-  if active_character.id == 0x01 then
+  if active_character.id == third_character_id then
     if enemy_to_attack == nil then
       if game_context.characters_by_id[0x05].can_act and bot_context.characters_by_id[0x05].can_act and enemy_to_card ~= nil then
         pressAndRelease(bot_context, keys, 'Circle')
@@ -221,7 +226,7 @@ function TrainCardGrindState:run(game_context, bot_context, keys)
         end
       end
     else
-      if game_context.characters_by_id[0x01].can_act and bot_context.characters_by_id[0x01].can_act then
+      if game_context.characters_by_id[third_character_id].can_act and bot_context.characters_by_id[third_character_id].can_act then
         pressAndRelease(bot_context, keys, 'Circle')
       end
     end

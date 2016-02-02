@@ -18,6 +18,9 @@ dofile 'ffviii-state-seifergrind.lua'
 dofile 'ffviii-state-seiferfindbattle.lua'
 dofile 'ffviii-state-traincardgrind.lua'
 dofile 'ffviii-state-trainfindbattle.lua'
+dofile 'ffviii-state-rosettarng.lua'
+dofile 'ffviii-state-advancedcardgrind.lua'
+dofile 'ffviii-state-levelupenemy.lua'
 
 do
   local clear_keys = {}
@@ -42,15 +45,19 @@ do
     
     { 2, ExitMenuState:new() },
     { 3, GfAbilityState:new() },
-    { 4, DrawState:new() },
     
-    --{ 6, SeiferGrindState:new() },
-    { 6, TrainCardGrindState: new() },
+    --{ 5, SeiferGrindState:new() },
+    --{ 5, TrainCardGrindState:new() },
+    { 5, AdvancedCardGrindState:new() },
+    { 6, DrawState:new() },
+    { 7, LevelUpEnemyState:new() },
 
-    { 7, RunAwayState:new() },
+    --{ 7, RunAwayState:new() },
     { 8, SaveGameState:new() },
     { 9, HealCharacterState:new() },
     { 10, AcceptBattleRewardsState:new() },
+    
+    --{ 11, RosettaRngState:new() },
     
     { 100, ReloadGameState:new() },
   })

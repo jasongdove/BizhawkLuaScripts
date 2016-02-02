@@ -43,6 +43,12 @@ function DrawState:run(game_context, bot_context, keys)
     return
   end
   
+  -- pass to a character who can draw
+  if game_context.characters[character_to_draw].can_act and game_context.battle.active_character ~= character_to_draw then
+    pressAndRelease(bot_context, keys, 'Circle')
+    return
+  end
+  
   local enemy_to_draw = nil
   local magic_to_draw = nil
   
@@ -50,38 +56,42 @@ function DrawState:run(game_context, bot_context, keys)
     if game_context.battle.enemies[enemy_index].is_alive then
       for enemy_magic_index = 0,3 do
         local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index].id
-        if game_context.battle.enemies[enemy_index].magic[enemy_magic_index].is_unknown then
-          enemy_to_draw = enemy_index
-          magic_to_draw = magic_id
-          break
-        end
         
-        if magic_id > 0 then
-          local has_magic = false
-          for character_magic_index = 0,31 do
-            if character.magic[character_magic_index].id == magic_id then
-              has_magic = true
-              if character.magic[character_magic_index].quantity < 100 then
-                enemy_to_draw = enemy_index
-                magic_to_draw = magic_id
-                break
-              end
-              break
-            end
+        -- skip spells we don't want
+        if magic_id ~= 0x01 and magic_id ~= 0x04 and magic_id ~= 0x07 and magic_id ~= 0x32 then
+          if game_context.battle.enemies[enemy_index].magic[enemy_magic_index].is_unknown then
+            enemy_to_draw = enemy_index
+            magic_to_draw = magic_id
+            break
           end
           
-          -- draw a new magic as long as we have room
-          if not has_magic then
+          if magic_id > 0 then
+            local has_magic = false
             for character_magic_index = 0,31 do
-              if character.magic[character_magic_index].id == 0x00 then
-                enemy_to_draw = enemy_index
-                magic_to_draw = magic_id
+              if character.magic[character_magic_index].id == magic_id then
+                has_magic = true
+                if character.magic[character_magic_index].quantity < 100 then
+                  enemy_to_draw = enemy_index
+                  magic_to_draw = magic_id
+                  break
+                end
                 break
               end
-            end            
-          end
+            end
+            
+            -- draw a new magic as long as we have room
+            if not has_magic then
+              for character_magic_index = 0,31 do
+                if character.magic[character_magic_index].id == 0x00 then
+                  enemy_to_draw = enemy_index
+                  magic_to_draw = magic_id
+                  break
+                end
+              end            
+            end
 
-          if enemy_to_draw ~= nil then break end
+            if enemy_to_draw ~= nil then break end
+          end
         end
       end
     end
@@ -89,10 +99,19 @@ function DrawState:run(game_context, bot_context, keys)
     if enemy_to_draw ~= nil then break end
   end
   
+  gui.text(0, 30, 'character to draw: ' .. character_to_draw)
+  gui.text(0, 45, 'enemy to draw: ' .. enemy_to_draw)
+  gui.text(0, 60, 'magic to draw: ' .. magic_to_draw)
+  
   -- couldn't find anything to draw, so pass to the next character
   if enemy_to_draw == nil then
     pressAndRelease(bot_context, keys, 'Circle')
   else
+    -- do nothing if we aren't on the right character
+    if game_context.battle.active_character ~= character_to_draw then
+      return
+    end
+  
     -- select 'draw'
     if game_context.battle.is_main_menu_active then
       if game_context.battle.main_menu_index < 1 then

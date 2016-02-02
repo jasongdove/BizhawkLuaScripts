@@ -6,14 +6,15 @@ function TrainFindBattleState:needToRun(game_context, bot_context)
     return false
   end
   
-  for character_index = 0,2 do
-    local character = game_context.characters[character_index]
-    
-    -- party must contain squall, zell and selfie
-    if not (character.id == 0x00 or character.id == 0x01 or character.id == 0x05) then
-      return false
-    end
-  end
+  -- for character_index = 0,2 do
+  --   local character = game_context.characters[character_index]
+  --   
+  --   -- party must contain squall and selfie
+  --   local third_character_id = 0x04 -- 0x04 for rinoa, 0x01 for zell
+  --   if not (character.id == 0x00 or character.id == third_character_id or character.id == 0x05) then
+  --     return false
+  --   end
+  -- end
   
   return true
 end
@@ -29,9 +30,11 @@ function TrainFindBattleState:run(game_context, bot_context, keys)
     if bot_context.tapping_left then
       bot_context.tapping_left = false
       bot_context.tapping_right = true
+      keys.Cross = true
     else
       bot_context.tapping_left = true
       bot_context.tapping_right = false
+      keys.Cross = false
     end
     
     bot_context.left_right_countdown = 20
