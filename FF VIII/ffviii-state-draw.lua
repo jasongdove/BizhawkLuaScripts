@@ -1,3 +1,71 @@
+local MAGIC_FIRE = 0x01
+local MAGIC_FIRA = 0x02
+local MAGIC_FIRAGA = 0x03
+local MAGIC_BLIZZARD = 0x04
+local MAGIC_BLIZZARA = 0x05
+local MAGIC_BLIZZAGA = 0x06
+local MAGIC_THUNDER = 0x07
+local MAGIC_THUNDARA = 0x08
+local MAGIC_THUNDAGA = 0x09
+local MAGIC_WATER = 0x0A
+local MAGIC_AERO = 0x0B
+local MAGIC_BIO = 0x0C
+local MAGIC_DEMI = 0x0D
+local MAGIC_HOLY = 0x0E
+local MAGIC_QUAKE = 0x11
+local MAGIC_TORNADO = 0x12
+local MAGIC_ULTIMA = 0x13
+local MAGIC_CURE = 0x15
+local MAGIC_CURA = 0x16
+local MAGIC_CURAGA = 0x17
+local MAGIC_LIFE = 0x18
+local MAGIC_FULL_LIFE = 0x19
+local MAGIC_REGEN = 0x1A
+local MAGIC_ESUNA = 0x1B
+local MAGIC_DISPEL = 0x1C
+local MAGIC_PROTECT = 0x1D
+local MAGIC_SHELL = 0x1E
+local MAGIC_REFLECT = 0x1F
+local MAGIC_DOUBLE = 0x21
+local MAGIC_HASTE = 0x23
+local MAGIC_SLOW = 0x24
+local MAGIC_BLIND = 0x26
+local MAGIC_CONFUSE = 0x27
+local MAGIC_SLEEP = 0x28
+local MAGIC_SILENCE = 0x29
+local MAGIC_BREAK = 0x2A
+local MAGIC_DEATH = 0x2B
+local MAGIC_DRAIN = 0x2C
+local MAGIC_PAIN = 0x2D
+local MAGIC_BERSERK = 0x2E
+local MAGIC_FLOAT = 0x2F
+local MAGIC_ZOMBIE = 0x30
+local MAGIC_MELTDOWN = 0x31
+local MAGIC_SCAN = 0x32
+
+local MAGIC_TO_IGNORE =
+{
+  [MAGIC_FIRE] = true,
+  [MAGIC_FIRA] = true,
+  [MAGIC_BLIZZARD] = true,
+  [MAGIC_BLIZZARA] = true,
+  [MAGIC_THUNDER] = true,
+  [MAGIC_THUNDARA] = true,
+  [MAGIC_WATER] = true,
+  [MAGIC_AERO] = true,
+  [MAGIC_DEMI] = true,
+  [MAGIC_CURE] = true,
+  [MAGIC_CURA] = true,
+  [MAGIC_DOUBLE] = true,
+  [MAGIC_SLOW] = true,
+  [MAGIC_BLIND] = true,
+  [MAGIC_SILENCE] = true,
+  [MAGIC_DRAIN] = true,
+  [MAGIC_FLOAT] = true,
+  [MAGIC_ZOMBIE] = true,
+  [MAGIC_SCAN] = true,
+}
+
 DrawState = State:new()
 
 function DrawState:needToRun(game_context, bot_context)
@@ -58,7 +126,7 @@ function DrawState:run(game_context, bot_context, keys)
         local magic_id = game_context.battle.enemies[enemy_index].magic[enemy_magic_index].id
         
         -- skip spells we don't want
-        if magic_id ~= 0x01 and magic_id ~= 0x04 and magic_id ~= 0x07 and magic_id ~= 0x32 then
+        if MAGIC_TO_IGNORE[magic_id] == nil then
           if game_context.battle.enemies[enemy_index].magic[enemy_magic_index].is_unknown then
             enemy_to_draw = enemy_index
             magic_to_draw = magic_id

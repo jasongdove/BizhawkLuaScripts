@@ -1,4 +1,4 @@
-local MIN_LEVEL = 50
+local MIN_LEVEL = 44
 
 LevelUpEnemyState = State:new()
 

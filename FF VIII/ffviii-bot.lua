@@ -48,11 +48,12 @@ do
     
     --{ 5, SeiferGrindState:new() },
     --{ 5, TrainCardGrindState:new() },
-    { 5, AdvancedCardGrindState:new() },
+    { 4, RunAwayState:new() },
+    
+    --{ 5, AdvancedCardGrindState:new() },
     { 6, DrawState:new() },
     { 7, LevelUpEnemyState:new() },
 
-    --{ 7, RunAwayState:new() },
     { 8, SaveGameState:new() },
     { 9, HealCharacterState:new() },
     { 10, AcceptBattleRewardsState:new() },
