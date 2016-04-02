@@ -1,2 +1,2 @@
-# FCEUXLuaScripts
-Lua scripts for the FCEUX emulator
+# BizhawkLuaScripts
+Lua scripts for the Bizhawk emulator
